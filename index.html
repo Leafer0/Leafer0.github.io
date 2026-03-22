@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leafer？</title>
+    
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        paper: '#FDFBF7',
+                    },
+                    fontFamily: {
+                        sans: ['Noto Sans SC', 'sans-serif'],
+                        serif: ['Noto Serif SC', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- 引入 Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body { font-family: 'Noto Sans SC', sans-serif; }
+        .prose-text { font-family: 'Noto Serif SC', serif; }
+        
+        .photo-card {
+    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    background: linear-gradient(135deg, #ffffff 0%, #f9f9f9 100%);
+    box-shadow: 0 10px 20px rgba(0,0,0,0.05), 0 6px 6px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: visible; /* 允许装饰溢出 */
+}
+/* 1. 核心遮罩层：背景分割动画 */
+        .intro-bg-left, .intro-bg-right {
+            transition: transform 1.2s cubic-bezier(0.87, 0, 0.13, 1);
+        }
+
+/* 2. 文字炫光与书写感动画 */
+        .shimmer-text {
+            background: linear-gradient(90deg, #333 0%, #10b981 50%, #333 100%);
+            background-size: 200% auto;
+            color: transparent;
+            -webkit-background-clip: text;
+            background-clip: text;
+            animation: shine 3s linear infinite;
+        }
+
+        @keyframes shine {
+            to { background-position: 200% center; }
+        }
+
+/* 3. 进场时缩放与模糊消失 */
+        .intro-content-leave {
+            filter: blur(10px);
+            transform: scale(1.1);
+            opacity: 0;
+            transition: all 0.8s ease-in;
+        }   
+
+/* 4. 底部装饰线拉伸 */
+        .line-grow {
+            width: 0;
+            height: 2px;
+            background: #10b981;
+            animation: grow 1.5s ease-out forwards;
+            animation-delay: 0.5s;
+        }
+
+        @keyframes grow {
+            to { width: 150px; }
+        }
+        .photo-card {
+    cursor: pointer;
+    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); /* 增加回弹感 */
+}
+/* 悬停时的浮起效果 */
+       .photo-card:hover {
+    transform: translateY(-15px) rotate(0deg) scale(1.1) !important; /* 悬停时回正 */
+    z-index: 50;
+    filter: brightness(1.1);
+}
+
+/* 模拟胶带装饰 */
+       .photo-card::before {
+    background: rgba(255, 255, 255, 0.5);
+    transform: translateX(-50%) rotate(-2deg);
+    mask-image: linear-gradient(to bottom, white, transparent); /* 边缘羽化 */
+}
+/* 深色模式适配 */
+        .dark .photo-card {
+        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        }
+        /* 页面切换动画 */
+        .fade-enter-active, .fade-leave-active {
+            transition: opacity 0.3s ease;
+        }
+        .fade-enter-from, .fade-leave-to {
+            opacity: 0;
+        }
+
+        /* 背景轮播过渡：淡入淡出效果 */
+        .bg-fade-enter-active, .bg-fade-leave-active {
+            transition: opacity 2s ease-in-out;
+        }
+        .bg-fade-enter-from, .bg-fade-leave-to {
+            opacity: 0;
+        }
+
+        .sidebar-transition {
+            transition: transform 0.3s ease-in-out;
+        }
+
+        .fade-in-up {
+            animation: fadeInUp 1s ease-out forwards;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        @keyframes fadeInUp {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 磨砂玻璃效果增强 */
+        .glass-panel {
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+       /* 背景缓慢缩放动画 (Ken Burns Effect) */
+@keyframes kenburns {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); } /* 缓慢放大到1.1倍 */
+    100% { transform: scale(1); }
+}
+
+.bg-animate {
+    /* 20秒完成一次呼吸循环，线性运动，无限循环 */
+    animation: kenburns 20s linear infinite;
+}
+/* 定义浮现动画 */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* 这里的 stagger-in 是容器类名 */
+.stagger-in > * {
+    opacity: 0; /* 初始隐藏 */
+    animation: fadeInUp 0.8s ease forwards;
+}
+
+/* 为每一段设置延迟，营造错落感 */
+.stagger-in > *:nth-child(1) { animation-delay: 0.1s; }
+.stagger-in > *:nth-child(2) { animation-delay: 0.2s; }
+.stagger-in > *:nth-child(3) { animation-delay: 0.3s; }
+.stagger-in > *:nth-child(4) { animation-delay: 0.4s; }
+.stagger-in > *:nth-child(5) { animation-delay: 0.5s; }
+.stagger-in > *:nth-child(6) { animation-delay: 0.6s; }
+    /* 导航项基础样式优化 */
+nav button {
+    position: relative;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 悬停时的微光效果 */
+nav button:hover {
+    padding-left: 1.5rem; /* 向右微移 */
+    background: rgba(16, 185, 129, 0.05); /* 极淡的翠绿色 */
+}
+
+/* 激活状态的左侧指示条 */
+.nav-active-bar {
+    position: absolute;
+    left: 0;
+    top: 20%;
+    height: 60%;
+    width: 4px;
+    background: #10b981;
+    border-radius: 0 4px 4px 0;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+    animation: barGrow 0.4s ease-out;
+}
+
+@keyframes barGrow {
+    from { height: 0; opacity: 0; }
+    to { height: 60%; opacity: 1; }
+}
+
+/* 侧边栏整体的毛玻璃增强 */
+.glass-panel {
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+    </style>
+</head>
+<body class="bg-paper dark:bg-gray-950 overflow-hidden">
+
+<div id="app">
+    <!-- 入场动画遮罩层 -->
+    <div v-if="showIntroScreen" class="fixed inset-0 z-[100] overflow-hidden">
+    <div :class="['absolute inset-y-0 left-0 w-1/2 bg-paper dark:bg-gray-900 intro-bg-left', !showIntro ? '-translate-x-full' : '']"></div>
+    <div :class="['absolute inset-y-0 right-0 w-1/2 bg-paper dark:bg-gray-900 intro-bg-right', !showIntro ? 'translate-x-full' : '']"></div>
+    
+    <div :class="['relative z-[110] flex flex-col items-center justify-center h-full transition-all duration-700', !showIntro ? 'intro-content-leave' : '']">
+        <div class="overflow-hidden">
+            <h1 class="text-4xl md:text-6xl font-bold font-serif shimmer-text mb-4">
+                Leafer's Garden
+            </h1>
+        </div>
+        <div class="line-grow mb-6"></div>
+        <p class="text-gray-400 tracking-[0.3em] uppercase text-xs md:text-sm animate-pulse">
+            Establishing Connection ...
+        </p>
+    </div>
+</div>
+        <div class="fixed inset-0 z-0 overflow-hidden bg-gray-200 dark:bg-gray-900">
+    <transition-group name="bg-fade">
+        <div v-for="(bg, index) in backgroundImages" 
+             :key="index" 
+             v-show="currentBgIndex === index"
+             class="absolute inset-0 bg-cover bg-center bg-no-repeat bg-animate"
+             :style="{ backgroundImage: `url(${bg})`, zIndex: index === currentBgIndex ? 1 : 0 }">
+        </div>
+    </transition-group>
+    <div class="absolute inset-0 z-10 bg-white/60 dark:bg-black/75 backdrop-blur-[1px] transition-colors duration-700"></div>
+</div>
+        <div class="relative z-20 min-h-screen flex flex-col md:flex-row">
+            
+            <!-- 移动端顶部状态栏 -->
+            <div class="md:hidden flex items-center justify-between p-4 bg-white/80 dark:bg-gray-900/80 backdrop-blur border-b dark:border-gray-800 sticky top-0 z-40">
+                <span class="font-serif font-bold text-lg">Leafer</span>
+                <button @click="sidebarOpen = !sidebarOpen" class="p-2 text-gray-600 dark:text-gray-300">
+                    <i class="fas fa-bars text-xl"></i>
+                </button>
+            </div>
+
+            <!-- 侧边栏 Sidebar -->
+            <aside :class="[
+                'fixed inset-y-0 left-0 z-50 w-64 bg-white/70 dark:bg-gray-900/70 glass-panel border-r border-gray-100 dark:border-gray-800 sidebar-transition md:translate-x-0 md:static',
+                sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+            ]">
+                <div class="h-full flex flex-col p-8">
+                    <!-- 头像区域 -->
+                    <div class="w-24 h-24 mx-auto mb-4 relative">
+    <img :src="personalInfo.avatar" class="w-full h-full object-cover rounded-full border-2 border-emerald-500/20 shadow-lg">
+    <div class="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-white dark:border-gray-900 rounded-full animate-pulse shadow-[0_0_8px_#10b981]"></div>
+</div>
+
+<h2 class="text-xl font-bold font-serif">{{ personalInfo.name }}</h2>
+<div class="text-[10px] font-mono text-emerald-500/60 mt-1 uppercase tracking-widest">
+    Status: {{ randomStatus }}
+</div>
+
+<p class="text-xs text-gray-400 dark:text-gray-500 mt-4 italic px-2 border-l-2 border-emerald-500/20 py-1">
+    “{{ currentQuote }}”
+</p>
+                    <!-- 导航菜单 -->
+                    <nav class="flex-1 space-y-2"> <button v-for="item in navItems" :key="item.id" 
+       @click="changePage(item.id)"
+       :class="[
+           'w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all group relative',
+           currentPage === item.id 
+           ? 'bg-emerald-50/50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' 
+           : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+       ]">
+        
+        <div v-if="currentPage === item.id" class="nav-active-bar"></div>
+        
+        <i :class="[item.icon, 'mr-3 w-5 text-center group-hover:scale-120 transition-transform duration-300', currentPage === item.id ? 'scale-110' : '']"></i>
+        <span class="relative z-10">{{ item.name }}</span>
+    </button>
+</nav>
+
+                    <!-- 底部设置与社交 -->
+                    <div class="mt-auto pt-6 border-t dark:border-gray-800">
+                        <div class="flex justify-around mb-6 text-gray-400">
+                            <a v-for="social in socialLinks" :key="social.icon" :href="social.href" class="hover:text-emerald-500 transition-colors">
+                                <i :class="social.icon"></i>
+                            </a>
+                        </div>
+                        <button @click="toggleTheme" class="w-full flex items-center justify-center p-3 rounded-xl bg-white/50 dark:bg-gray-800/50 text-sm font-medium border border-gray-200/50 dark:border-gray-700/50">
+                            <i v-if="isDark" class="fas fa-sun text-yellow-400 mr-2"></i>
+                            <i v-else class="fas fa-moon text-blue-500 mr-2"></i>
+                            {{ isDark ? '浅色模式' : '深色模式' }}
+                        </button>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- 移动端遮罩 -->
+            <div v-if="sidebarOpen" @click="sidebarOpen = false" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden"></div>
+
+            <!-- 主内容区域 Main Content -->
+            <main class="flex-1 h-screen overflow-y-auto relative">
+                <transition name="fade" mode="out-in">
+                    <!-- 首页 / 关于我 -->
+                    <div v-if="currentPage === 'about'" class="max-w-3xl mx-auto py-16 px-6 md:py-24 animate-fade-in" key="about">
+                        <div class="mb-12">
+                            <h1 class="text-4xl font-bold font-serif mb-6">我是谁?</h1>
+                            <div class="w-12 h-1 bg-emerald-500 rounded-full mb-8"></div>
+                            <div class="prose-text text-lg text-gray-800 dark:text-gray-100 leading-relaxed space-y-6 stagger-in">
+                                <p>我是Leafer,</p>
+                                <p>05年大专生，半拉工科人，软工牛马，也许在"努力"转本,intp-a(?)。</p>
+                                <h1 class="text-4xl font-bold font-serif mb-6">喜欢的东西？</h1>
+                                <p>没有什么爱好，至少目前实在想不出什么爱好。</p>
+                                <p>有一台自己亲手拼成的台式，没有RGB灯带没有高端配件，完全的廉政机箱(笑)。</p>
+                                <div class="py-8 grid grid-cols-1 sm:grid-cols-2 gap-4 relative">
+                                        
+                                        <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform -rotate-2">
+                                            <div class="overflow-hidden rounded">
+                                                <img src="me/case1.jpg" alt="[机箱图一]" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700" 
+                                                     onerror="this.parentElement.innerHTML='<div class=\'w-full h-56 flex items-center justify-center text-gray-400 text-xs italic\'>[机箱展示图片 1]</div>'">
+                                            </div>
+                                            <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">MY PC . 01</p>
+                                        </div>
+                                      
+                                        <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform rotate-3 sm:-translate-y-4">
+                                            <div class="overflow-hidden rounded">
+                                                <img src="me/case2.jpg" alt="[机箱图二]" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700" 
+                                                     onerror="this.parentElement.innerHTML='<div class=\'w-full h-56 flex items-center justify-center text-gray-400 text-xs italic\'>[机箱展示图片 2]</div>'">
+                                            </div>
+                                            <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">MY PC . 02</p>
+                                        </div>
+                                    </div>
+                                <p>有时也会玩点小游戏，但实际电子ed，目前肉鸽优先，沙盒其次;还是淡坑音游壬，maimaidx，musedush，osu等等。</p>
+                                                   <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform -rotate-1">
+                                <div class="overflow-hidden rounded">
+                                <img src="me/mai1.jpg" alt="我的生活" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700">
+                                </div>
+                                <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">MAI . 01</p>
+                                </div>
+                                <p>当然你能找到这里，说明你是从VRC看到了我的链接~这只是个github提供的静态网页部署界面，也许我将在以后推出评论功能。这是个游戏，对一些人来说也是第二人生,
+                                    
+                                </p>
+                            
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-16">
+                            <div class="p-6 rounded-2xl bg-white/50 dark:bg-gray-900/50 glass-panel border border-white/20 dark:border-gray-800 shadow-sm">
+                                
+                                <div class="flex flex-wrap gap-2">
+                                    <span v-for="tag in personalInfo.tags" :key="tag" class="px-3 py-1 bg-white/50 dark:bg-gray-800/50 text-xs rounded-full border border-gray-200/30 dark:border-gray-700/30">#{{ tag }}</span>
+                                </div>
+                            </div>
+                            <div class="p-6 rounded-2xl bg-white/50 dark:bg-gray-900/50 glass-panel border border-white/20 dark:border-gray-800 shadow-sm">
+                                
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div v-for="skill in skills" :key="skill.name" class="flex items-center text-sm">
+                                        <i :class="[skill.icon, skill.color, 'mr-2']"></i> {{ skill.name }}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 历程 / Journey -->
+                    <div v-else-if="currentPage === 'journey'" class="max-w-3xl mx-auto py-16 px-6 md:py-24" key="journey">
+                        <h1 class="text-4xl font-bold font-serif mb-12">过去与未来</h1>
+                        <div class="relative border-l-2 border-emerald-500/30 dark:border-emerald-500/20 space-y-12 ml-4">
+                            <div v-for="(item, index) in journey" :key="index" class="relative pl-8">
+                                <div class="absolute -left-[11px] top-1 w-5 h-5 rounded-full bg-white dark:bg-gray-900 border-4 border-emerald-500 z-10 shadow-sm"></div>
+                                <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded">{{ item.year }}</span>
+                                <h3 class="text-xl font-bold mt-3 mb-2">{{ item.title }}</h3>
+                                <p class="text-gray-700 dark:text-gray-300 prose-text leading-relaxed">{{ item.content }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 随笔 / Thoughts -->
+                    <div v-else-if="currentPage === 'thoughts'" class="max-w-3xl mx-auto py-16 px-6 md:py-24" key="thoughts">
+    <h1 class="text-4xl font-bold font-serif mb-12">我的更新帖子</h1>
+    <div class="space-y-12">
+        <article v-for="(article, index) in articles" :key="index" 
+                 class="group p-6 rounded-3xl hover:bg-white/40 dark:hover:bg-gray-900/40 transition-all duration-500 border border-transparent hover:border-white/20 dark:hover:bg-gray-800">
+            
+            <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 font-mono">{{ article.date }}</div>
+            <h2 class="text-2xl font-bold mb-4 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                {{ article.title }}
+            </h2>
+            
+            <div class="text-gray-700 dark:text-gray-300 prose-text leading-relaxed mb-4">
+                <p v-if="expandedIndex !== index" class="line-clamp-3">
+                    {{ article.summary }}
+                </p>
+                <div v-else class="animate-fade-in whitespace-pre-wrap">
+                    {{ article.content }}
+                </div>
+            </div>
+
+            <button @click="toggleArticle(index)" class="text-sm font-bold text-emerald-600 dark:text-emerald-400 flex items-center">
+                {{ expandedIndex === index ? '收起全文' : '阅读全文' }}
+                <i :class="['fas ml-2 text-xs transition-transform', expandedIndex === index ? 'fa-chevron-up' : 'fa-arrow-right group-hover:translate-x-1']"></i>
+            </button>
+        </article>
+    </div>
+</div>
+                </transition>
+
+                <!-- 版权页脚 -->
+                <footer class="max-w-3xl mx-auto py-12 px-6 text-center text-xs text-gray-500 dark:text-gray-400">
+                    <p>© {{ new Date().getFullYear() }} By Leafer</p>
+                </footer>
+            </main>
+        </div>
+    </div>
+</div>
+
+<script>
+    const { createApp, ref, onMounted, onUnmounted } = Vue;
+
+    createApp({
+        setup() {
+
+            const isDark = ref(false);
+            const sidebarOpen = ref(false);
+            const showIntro = ref(true);
+            const showIntroScreen = ref(true);
+            const currentPage = ref('about');
+            const statusList = ['Coding...', 'Gaming...', 'Thinking...', 'Sleeping...', 'VRChatting...'];
+            const randomStatus = ref(statusList[Math.floor(Math.random() * statusList.length)]);
+
+            const quotes = [
+            "Bug 是程序员唯一的遗产。",
+            "在虚拟世界里寻找真实的连接。",
+            "所谓理想，就是还没被生活磨平的棱角。",
+            "今天的 maimai 也是全 FC 吗？"
+            ];
+            const currentQuote = ref(quotes[Math.floor(Math.random() * quotes.length)]);
+            
+            // 背景图片轮播列表
+            const backgroundImages = ref([
+                'assets/bg.png',
+                'assets/bg1.png',
+                'assets/bg2.png',
+                'assets/bg3.png',
+                'assets/bg4.png',
+                'assets/bg5.png'
+            ]);
+            const currentBgIndex = ref(0);
+            let bgInterval = null;
+
+            const personalInfo = {
+                name: "Leafer",
+                avatar: "assets/Leafer.jpg",
+                bio: "我不追求成为技术的大神，但我渴望成为一名真诚的表达者。",
+                tags: [  "VRC", ],
+            };
+
+            const navItems = [
+                { id: 'about', name: '关于我', icon: 'fas fa-user-leaf' },
+                { id: 'journey', name: '心流', icon: 'fas fa-mountain' },
+                { id: 'thoughts', name: '帖子', icon: 'fas fa-feather-alt' },
+            ];
+
+            const socialLinks = [
+                { icon: 'fab fa-github', href: '#' },
+                { icon: 'fas fa-envelope', href: 'mailto:example@email.com' },
+                { icon: 'fas fa-rss', href: '#' },
+            ];
+
+            const skills = [
+                { name: 'Vue.js', icon: 'fab fa-vuejs', color: 'text-green-500' },
+                { name: 'Tailwind', icon: 'fab fa-css3-alt', color: 'text-blue-400' },
+            ];
+
+            const journey = [
+                { year:'2025.12.23',title:'思考',content:'思考什么好呢，思考我的人生，我的生活并没有那么愉快，在一位朋友的推荐下，我经常和ai聊天，因为我在上上个星期受到了一些打击。ai能够提供的情绪价值竟然是人无法提供的，在ai面前我才能勉强情绪化，我认识到自己不够成熟，还无法消化一些抽象的琐事，不过我已经逐渐在改变自身了，至于是好是坏，就由时间验证。'},
+                { year: '2025.12.21', title:'诞生了',content:'我突然想制作这个网站，并且着手开始操作。本来这里是记录曾经我自己的感受，我思考之后决定放弃，因为我对曾经并不留恋。'},
+                { year: '2005.5.23', title: '我出生了', content: '最值得庆祝的时刻，接着迎接操蛋的世界吧。' }
+            ];
+
+           const articles = [
+    { 
+        title: 'Hello World', 
+        date: '2025.12.21', 
+        summary: '此网站见证我的新生，此贴证明我的存在',
+        content: '这里是文章的完整内容...你可以写很长很长的一段话，分享你的感悟。' // 新增完整内容
+    }
+];
+
+// 新增一个变量来记录当前展开的文章索引
+const expandedIndex = ref(null); 
+
+const toggleArticle = (index) => {
+    if (expandedIndex.value === index) {
+        expandedIndex.value = null; // 如果已经是展开状态，则收起
+    } else {
+        expandedIndex.value = index; // 展开点击的文章
+    }
+};
+
+            const changePage = (pageId) => {
+                currentPage.value = pageId;
+                sidebarOpen.value = false;
+                const main = document.querySelector('main');
+                if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
+            };
+
+            const toggleTheme = () => {
+                isDark.value = !isDark.value;
+            };
+
+            // 预加载图片并启动轮播
+            const initBackground = () => {
+                backgroundImages.value.forEach(src => {
+                    const img = new Image();
+                    img.src = src;
+                });
+                
+                bgInterval = setInterval(() => {
+                    currentBgIndex.value = (currentBgIndex.value + 1) % backgroundImages.value.length;
+                }, 5000);
+            };
+            
+
+            onMounted(() => {
+    //
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) isDark.value = true;
+    
+    initBackground(); //
+
+    // 延时顺序：先显示文字 -> 2.5秒后拉开大门 -> 3.7秒后彻底移除遮罩
+    setTimeout(() => {
+        showIntro.value = false; // 触发 CSS 中的拉门和缩放动画
+        setTimeout(() => {
+            showIntroScreen.value = false; // 销毁组件
+        }, 1200); // 这里的延时应与 CSS 的 1.2s transition 同步
+    }, 2500); 
+});
+
+            onUnmounted(() => {
+                if (bgInterval) clearInterval(bgInterval);
+            });
+
+            return {
+                isDark, sidebarOpen, showIntro, showIntroScreen, currentPage,
+                backgroundImages, currentBgIndex,
+                personalInfo, navItems, socialLinks, skills, journey, articles,
+                changePage, toggleTheme,
+                articles,
+    expandedIndex, 
+    toggleArticle
+                
+            };
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
