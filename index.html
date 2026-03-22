@@ -206,9 +206,22 @@ nav button:hover {
 .glass-panel {
     border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
+@media (max-width: 768px) {
+    /* 确保手机端 body 和 app 容器允许内容溢出 */
+    body, #app {
+        overflow-y: visible !important;
+        height: auto !important;
+    }
+    
+    /* 让主内容区域自然滚动，而不是依赖内部滚动条 */
+    main {
+        height: auto !important;
+        overflow-y: visible !important;
+    }
+}
     </style>
 </head>
-<body class="bg-paper dark:bg-gray-950 overflow-hidden">
+<body :class="['bg-paper dark:bg-gray-950 transition-colors duration-700', showIntroScreen ? 'overflow-hidden' : '']">
 
 <div id="app">
     <!-- 入场动画遮罩层 -->
@@ -307,6 +320,7 @@ nav button:hover {
 
             <!-- 主内容区域 Main Content -->
             <main class="flex-1 h-screen overflow-y-auto relative">
+            <main class="flex-1 min-h-screen relative">
                 <transition name="fade" mode="out-in">
                     <!-- 首页 / 关于我 -->
                     <div v-if="currentPage === 'about'" class="max-w-3xl mx-auto py-16 px-6 md:py-24 animate-fade-in" key="about">
@@ -344,7 +358,7 @@ nav button:hover {
                                 </div>
                                 <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">MAI . 01</p>
                                 </div>
-                                <p>当然你能找到这里，说明你是从VRC看到了我的链接~这只是个github提供的静态网页部署界面，也许我将在以后推出评论功能。这是个游戏，对一些人来说也是第二人生,
+                                <p>你能找到这里，说明你是从VRC看到了我的链接~这只是个github提供的静态网页部署界面，也许我将在以后推出评论功能。这是个游戏，对一些人来说也是第二人生,
                                     
                                 </p>
                             
