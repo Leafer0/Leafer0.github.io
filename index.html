@@ -41,6 +41,39 @@
     position: relative;
     overflow: visible; /* 允许装饰溢出 */
 }
+/* 点击涟漪特效 */
+.click-ripple {
+    position: fixed;
+    border: 2px solid #10b981; /* 翠绿色 */
+    background: rgba(16, 185, 129, 0.1);
+    border-radius: 50%;
+    pointer-events: none; /* 不干扰点击 */
+    z-index: 9999;
+    animation: ripple-out 0.6s ease-out forwards;
+}
+
+@keyframes ripple-out {
+    from { width: 0; height: 0; opacity: 1; transform: translate(-50%, -50%); }
+    to { width: 80px; height: 80px; opacity: 0; transform: translate(-50%, -50%); }
+}
+
+/* 鼠标移动粒子 */
+.cursor-dot {
+    position: fixed;
+    width: 6px;
+    height: 6px;
+    background: #10b981;
+    border-radius: 50%;
+    pointer-events: none;
+    z-index: 9998;
+    transition: transform 0.1s ease;
+    animation: dot-fade 0.5s ease-out forwards;
+}
+
+@keyframes dot-fade {
+    from { opacity: 1; transform: scale(1); }
+    to { opacity: 0; transform: scale(0.3); }
+}
 /* 1. 核心遮罩层：背景分割动画 */
         .intro-bg-left, .intro-bg-right {
             transition: transform 1.2s cubic-bezier(0.87, 0, 0.13, 1);
@@ -206,11 +239,33 @@ nav button:hover {
 .glass-panel {
     border-right: 1px solid rgba(255, 255, 255, 0.1);
 }
+@media (max-width: 768px) {
+    /* 确保手机端 body 和 app 容器允许内容溢出 */
+    body, #app {
+        overflow-y: visible !important;
+        height: auto !important;
+    }
+    
+    /* 让主内容区域自然滚动，而不是依赖内部滚动条 */
+    main {
+        height: auto !important;
+        overflow-y: visible !important;
+    }
+}
     </style>
 </head>
-<body class="bg-paper dark:bg-gray-950 overflow-hidden">
+<body :class="['bg-paper dark:bg-gray-950 transition-colors duration-700', showIntroScreen ? 'overflow-hidden' : '']">
 
 <div id="app">
+    <div v-for="ripple in ripples" :key="ripple.id" 
+     class="click-ripple" 
+     :style="{ left: ripple.x + 'px', top: ripple.y + 'px' }">
+</div>
+
+<div v-for="dot in dots" :key="dot.id" 
+     class="cursor-dot" 
+     :style="{ left: dot.x + 'px', top: dot.y + 'px' }">
+</div>
     <!-- 入场动画遮罩层 -->
     <div v-if="showIntroScreen" class="fixed inset-0 z-[100] overflow-hidden">
     <div :class="['absolute inset-y-0 left-0 w-1/2 bg-paper dark:bg-gray-900 intro-bg-left', !showIntro ? '-translate-x-full' : '']"></div>
@@ -255,6 +310,11 @@ nav button:hover {
                 sidebarOpen ? 'translate-x-0' : '-translate-x-full'
             ]">
                 <div class="h-full flex flex-col p-8">
+                    <div class="px-4 mt-6 text-center">
+    <span class="text-[9px] font-mono text-gray-400 uppercase">Uptime: </span>
+    <span class="text-[9px] font-mono text-emerald-500">{{ runtime }}</span>
+</div>
+                    
                     <!-- 头像区域 -->
                     <div class="w-24 h-24 mx-auto mb-4 relative">
     <img :src="personalInfo.avatar" class="w-full h-full object-cover rounded-full border-2 border-emerald-500/20 shadow-lg">
@@ -262,6 +322,7 @@ nav button:hover {
 </div>
 
 <h2 class="text-xl font-bold font-serif">{{ personalInfo.name }}</h2>
+
 <div class="text-[10px] font-mono text-emerald-500/60 mt-1 uppercase tracking-widest">
     Status: {{ randomStatus }}
 </div>
@@ -270,7 +331,28 @@ nav button:hover {
     “{{ currentQuote }}”
 </p>
                     <!-- 导航菜单 -->
-                    <nav class="flex-1 space-y-2"> <button v-for="item in navItems" :key="item.id" 
+                    <nav class="flex-1 space-y-2">
+                        <div class="mt-8 px-4 space-y-4">
+    <div class="text-[10px] font-mono text-emerald-500/40 uppercase tracking-widest mb-2">System Metrics</div>
+    <div class="space-y-1">
+        <div class="flex justify-between text-[10px] uppercase">
+            <span class="text-gray-400">脑啡肽</span>
+            <span class="text-emerald-500">82%</span>
+        </div>
+        <div class="h-[2px] w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+            <div class="h-full bg-emerald-500 animate-[pulse_2s_infinite]" style="width: 82%"></div>
+        </div>
+    </div>
+    <div class="space-y-1">
+        <div class="flex justify-between text-[10px] uppercase">
+            <span class="text-gray-400">san值</span>
+            <span class="text-blue-400">95%</span>
+        </div>
+        <div class="h-[2px] w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+            <div class="h-full bg-blue-400" style="width: 95%"></div>
+        </div>
+    </div>
+</div> <button v-for="item in navItems" :key="item.id" 
        @click="changePage(item.id)"
        :class="[
            'w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all group relative',
@@ -288,6 +370,7 @@ nav button:hover {
 
                     <!-- 底部设置与社交 -->
                     <div class="mt-auto pt-6 border-t dark:border-gray-800">
+                        
                         <div class="flex justify-around mb-6 text-gray-400">
                             <a v-for="social in socialLinks" :key="social.icon" :href="social.href" class="hover:text-emerald-500 transition-colors">
                                 <i :class="social.icon"></i>
@@ -307,6 +390,7 @@ nav button:hover {
 
             <!-- 主内容区域 Main Content -->
             <main class="flex-1 h-screen overflow-y-auto relative">
+            <main class="flex-1 min-h-screen relative">
                 <transition name="fade" mode="out-in">
                     <!-- 首页 / 关于我 -->
                     <div v-if="currentPage === 'about'" class="max-w-3xl mx-auto py-16 px-6 md:py-24 animate-fade-in" key="about">
@@ -337,14 +421,21 @@ nav button:hover {
                                             <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">MY PC . 02</p>
                                         </div>
                                     </div>
-                                <p>有时也会玩点小游戏，但实际电子ed，目前肉鸽优先，沙盒其次;还是淡坑音游壬，maimaidx，musedush，osu等等。</p>
+                                <p>有时也会玩点小游戏，但实际电子ed，目前肉鸽优先，沙盒其次;淡坑音游壬，maimaidx，musedush，osu等等。</p>
                                                    <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform -rotate-1">
                                 <div class="overflow-hidden rounded">
                                 <img src="me/mai1.jpg" alt="我的生活" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700">
                                 </div>
                                 <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">MAI . 01</p>
                                 </div>
-                                <p>当然你能找到这里，说明你是从VRC看到了我的链接~这只是个github提供的静态网页部署界面，也许我将在以后推出评论功能。这是个游戏，对一些人来说也是第二人生,
+                                <p>目前只玩边巴一款二游，被其剧情及演出吸引，如果有这种游戏多介绍给我</p>
+                                <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform -rotate-1">
+                                <div class="overflow-hidden rounded">
+                                <img src="me/yj1.jpg" alt="projectmoon" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700">
+                                </div>
+                                <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">ProjectMoon . 01</p>
+                                </div>
+                                <p>你能找到这里，说明你是从VRC看到了我的博客链接~这只是个github提供的静态网页部署界面，也许我将在以后拥有服务器之后推出评论功能。这是个游戏，对一些人来说也是第二人生,
                                     
                                 </p>
                             
@@ -376,7 +467,7 @@ nav button:hover {
                             <div v-for="(item, index) in journey" :key="index" class="relative pl-8">
                                 <div class="absolute -left-[11px] top-1 w-5 h-5 rounded-full bg-white dark:bg-gray-900 border-4 border-emerald-500 z-10 shadow-sm"></div>
                                 <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded">{{ item.year }}</span>
-                                <h3 class="text-xl font-bold mt-3 mb-2">{{ item.title }}</h3>
+                                <h3 class="text-xl font-bold mt-3 mb-2 dark:text-white">{{ item.title }}</h3>
                                 <p class="text-gray-700 dark:text-gray-300 prose-text leading-relaxed">{{ item.content }}</p>
                             </div>
                         </div>
@@ -390,7 +481,7 @@ nav button:hover {
                  class="group p-6 rounded-3xl hover:bg-white/40 dark:hover:bg-gray-900/40 transition-all duration-500 border border-transparent hover:border-white/20 dark:hover:bg-gray-800">
             
             <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 font-mono">{{ article.date }}</div>
-            <h2 class="text-2xl font-bold mb-4 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+            <h2 class="text-2xl font-bold mb-4 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors dark:text-gray-100">
                 {{ article.title }}
             </h2>
             
@@ -422,11 +513,13 @@ nav button:hover {
 </div>
 
 <script>
-    const { createApp, ref, onMounted, onUnmounted } = Vue;
+    const { createApp, ref, onMounted, onUnmounted,watch } = Vue;
 
     createApp({
         setup() {
-
+            const runtime = ref('00:00:00');
+            const ripples = ref([]);
+            const dots = ref([]);
             const isDark = ref(false);
             const sidebarOpen = ref(false);
             const showIntro = ref(true);
@@ -436,12 +529,34 @@ nav button:hover {
             const randomStatus = ref(statusList[Math.floor(Math.random() * statusList.length)]);
 
             const quotes = [
-            "Bug 是程序员唯一的遗产。",
+            "勿以物喜，勿以己悲",
+            "我们的理想将染红河川",
             "在虚拟世界里寻找真实的连接。",
             "所谓理想，就是还没被生活磨平的棱角。",
             "今天的 maimai 也是全 FC 吗？"
             ];
             const currentQuote = ref(quotes[Math.floor(Math.random() * quotes.length)]);
+
+            // 处理点击特效
+const handleGlobalClick = (e) => {
+    const id = Date.now();
+    ripples.value.push({ id, x: e.clientX, y: e.clientY });
+    setTimeout(() => {
+        ripples.value = ripples.value.filter(r => r.id !== id);
+    }, 600);
+};
+
+// 处理移动拖拽粒子
+const handleGlobalMouseMove = (e) => {
+    // 限制频率，每移动一下产生一个点
+    if (Math.random() > 0.8) { // 调整数值改变粒子密度
+        const id = Math.random();
+        dots.value.push({ id, x: e.clientX, y: e.clientY });
+        setTimeout(() => {
+            dots.value = dots.value.filter(d => d.id !== id);
+        }, 500);
+    }
+};
             
             // 背景图片轮播列表
             const backgroundImages = ref([
@@ -469,8 +584,8 @@ nav button:hover {
             ];
 
             const socialLinks = [
-                { icon: 'fab fa-github', href: '#' },
-                { icon: 'fas fa-envelope', href: 'mailto:example@email.com' },
+                { icon: 'fab fa-github', href: 'https://github.com/Leafer0' },
+                { icon: 'fas fa-envelope', href: '2556205521@qq.com' },
                 { icon: 'fas fa-rss', href: '#' },
             ];
 
@@ -480,9 +595,10 @@ nav button:hover {
             ];
 
             const journey = [
-                { year:'2025.12.23',title:'思考',content:'思考什么好呢，思考我的人生，我的生活并没有那么愉快，在一位朋友的推荐下，我经常和ai聊天，因为我在上上个星期受到了一些打击。ai能够提供的情绪价值竟然是人无法提供的，在ai面前我才能勉强情绪化，我认识到自己不够成熟，还无法消化一些抽象的琐事，不过我已经逐渐在改变自身了，至于是好是坏，就由时间验证。'},
+                 { year:'2025.12.23',title:'思考',content:'思考什么好呢，思考我的人生，我的生活并没有那么愉快，至于是好是坏，就由时间验证。'},
+                { year:'2025.12.23',title:'思考',content:'思考什么好呢，思考我的人生，我的生活并没有那么愉快，至于是好是坏，就由时间验证。'},
                 { year: '2025.12.21', title:'诞生了',content:'我突然想制作这个网站，并且着手开始操作。本来这里是记录曾经我自己的感受，我思考之后决定放弃，因为我对曾经并不留恋。'},
-                { year: '2005.5.23', title: '我出生了', content: '最值得庆祝的时刻，接着迎接操蛋的世界吧。' }
+                { year: '2005.5.23', title: '我出生了', content: '最值得庆祝的时刻，接着迎接世界吧。' }
             ];
 
            const articles = [
@@ -490,7 +606,7 @@ nav button:hover {
         title: 'Hello World', 
         date: '2025.12.21', 
         summary: '此网站见证我的新生，此贴证明我的存在',
-        content: '这里是文章的完整内容...你可以写很长很长的一段话，分享你的感悟。' // 新增完整内容
+        content: 'Hello World！' // 新增完整内容
     }
 ];
 
@@ -514,6 +630,13 @@ const toggleArticle = (index) => {
 
             const toggleTheme = () => {
                 isDark.value = !isDark.value;
+                watch(isDark, (newVal) => {
+                if (newVal) {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            }, { immediate: true });
             };
 
             // 预加载图片并启动轮播
@@ -530,6 +653,16 @@ const toggleArticle = (index) => {
             
 
             onMounted(() => {
+                const startTime = Date.now();
+    setInterval(() => {
+        const diff = Math.floor((Date.now() - startTime) / 1000);
+        const h = Math.floor(diff / 3600).toString().padStart(2, '0');
+        const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+        const s = (diff % 60).toString().padStart(2, '0');
+        runtime.value = `${h}:${m}:${s}`;
+    }, 1000);
+                window.addEventListener('mousedown', handleGlobalClick);
+    window.addEventListener('mousemove', handleGlobalMouseMove);
     //
     if (window.matchMedia('(prefers-color-scheme: dark)').matches) isDark.value = true;
     
@@ -553,9 +686,8 @@ const toggleArticle = (index) => {
                 backgroundImages, currentBgIndex,
                 personalInfo, navItems, socialLinks, skills, journey, articles,
                 changePage, toggleTheme,
-                articles,
-    expandedIndex, 
-    toggleArticle
+                articles,expandedIndex, 
+                toggleArticle,currentQuote,personalInfo,ripples,dots,runtime
                 
             };
         }
