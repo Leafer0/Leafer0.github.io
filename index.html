@@ -1,6 +1,14 @@
 <!DOCTYPE html>
 <html lang="zh-CN" class="scroll-smooth">
 <head>
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-380DY1KLKD"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-380DY1KLKD');
+</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Leafer？</title>
@@ -367,6 +375,22 @@ nav button:hover {
         <span class="relative z-10">{{ item.name }}</span>
     </button>
 </nav>
+<div class="mt-6 px-4 py-3 bg-white/40 dark:bg-gray-800/40 rounded-2xl border border-white/20 dark:border-gray-700/30 backdrop-blur-sm">
+    <div class="flex items-center justify-between text-[10px] text-gray-400 uppercase font-mono mb-2">
+        <span>Web Traffic</span>
+        <i class="fas fa-chart-line text-emerald-500"></i>
+    </div>
+    <div class="flex flex-col gap-1">
+        <div class="flex justify-between items-center">
+            <span class="text-[11px] dark:text-gray-400">本站访客数</span>
+            <span id="busuanzi_value_site_uv" class="text-xs font-bold text-emerald-500 font-mono">--</span>
+        </div>
+        <div class="flex justify-between items-center">
+            <span class="text-[11px] dark:text-gray-400">本站访问量</span>
+            <span id="busuanzi_value_site_pv" class="text-xs font-bold text-blue-400 font-mono">--</span>
+        </div>
+    </div>
+</div>
 
                     <!-- 底部设置与社交 -->
                     <div class="mt-auto pt-6 border-t dark:border-gray-800">
@@ -433,7 +457,7 @@ nav button:hover {
                                 <div class="overflow-hidden rounded">
                                 <img src="me/yj1.jpg" alt="projectmoon" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700">
                                 </div>
-                                <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">ProjectMoon . 01</p>
+                                <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">projectmoon . 01</p>
                                 </div>
                                 <p>你能找到这里，说明你是从VRC看到了我的博客链接~这只是个github提供的静态网页部署界面，也许我将在以后拥有服务器之后推出评论功能。这是个游戏，对一些人来说也是第二人生,
                                     
@@ -693,6 +717,6 @@ const toggleArticle = (index) => {
         }
     }).mount('#app');
 </script>
-
+<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
 </body>
 </html>
