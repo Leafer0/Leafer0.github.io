@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="zh-CN" class="scroll-smooth">
 <head>
+    <script src="data.js"></script>
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-380DY1KLKD"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -260,6 +261,39 @@ nav button:hover {
         overflow-y: visible !important;
     }
 }
+/* 强制修复 Valine 在深色模式下的文字颜色 */
+.dark #vcomments .vlist .vcard .vcontent,
+.dark #vcomments .vlist .vcard .vhead .vnick,
+.dark #vcomments .vlist .vcard .vhead .vtime {
+    color: #e5e7eb !important; /* 浅灰色文字 */
+}
+
+.dark #vcomments .vpanel,
+.dark #vcomments .vinput {
+    background: #1f2937 !important; /* 深色背景 */
+    color: #f3f4f6 !important;
+}
+
+/* 之前提到的 prose 文字黑色的全局修复 */
+.dark .prose-text, 
+.dark p, 
+.dark .text-gray-800 {
+    color: #f3f4f6 !important;
+}
+/* 图片放大时的淡入动画 */
+.animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+/* 锁定背景滚动 */
+body:has(.cursor-zoom-out) {
+    overflow: hidden;
+}
     </style>
 </head>
 <body :class="['bg-paper dark:bg-gray-950 transition-colors duration-700', showIntroScreen ? 'overflow-hidden' : '']">
@@ -452,14 +486,14 @@ nav button:hover {
                                 </div>
                                 <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">MAI . 01</p>
                                 </div>
-                                <p>目前只玩边巴一款二游，被其剧情及演出吸引，如果有这种游戏多介绍给我</p>
+                                <p>目前只玩边巴一款二游，被其剧情及演出吸引，也是因为这个接触到月记的前两部，自己也搓了一个VRC的庄严哀悼ego装备~如果有这种游戏多介绍给我~</p>
                                 <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform -rotate-1">
                                 <div class="overflow-hidden rounded">
                                 <img src="me/yj1.jpg" alt="projectmoon" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700">
                                 </div>
                                 <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">projectmoon . 01</p>
                                 </div>
-                                <p>你能找到这里，说明你是从VRC看到了我的博客链接~这只是个github提供的静态网页部署界面，也许我将在以后拥有服务器之后推出评论功能。这是个游戏，对一些人来说也是第二人生,
+                                <p>你能找到这里，说明你是从VRC看到了我的博客链接~这只是个github提供的静态网页部署界面，也许我将在以后拥有服务器之后推出评论功能。这是个游戏，对一些人来说也是第二人生。
                                     
                                 </p>
                             
@@ -498,11 +532,11 @@ nav button:hover {
                     </div>
 
                     <!-- 随笔 / Thoughts -->
-                    <div v-else-if="currentPage === 'thoughts'" class="max-w-3xl mx-auto py-16 px-6 md:py-24" key="thoughts">
+                   <div v-else-if="currentPage === 'thoughts'" class="max-w-3xl mx-auto py-16 px-6 md:py-24" key="thoughts">
     <h1 class="text-4xl font-bold font-serif mb-12">我的更新帖子</h1>
     <div class="space-y-12">
         <article v-for="(article, index) in articles" :key="index" 
-                 class="group p-6 rounded-3xl hover:bg-white/40 dark:hover:bg-gray-900/40 transition-all duration-500 border border-transparent hover:border-white/20 dark:hover:bg-gray-800">
+                 class="group p-6 rounded-3xl hover:bg-white/40 dark:hover:bg-gray-900/40 transition-all duration-500 border border-transparent hover:border-white/20 dark:hover:border-gray-800">
             
             <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 font-mono">{{ article.date }}</div>
             <h2 class="text-2xl font-bold mb-4 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors dark:text-gray-100">
@@ -513,8 +547,20 @@ nav button:hover {
                 <p v-if="expandedIndex !== index" class="line-clamp-3">
                     {{ article.summary }}
                 </p>
-                <div v-else class="animate-fade-in whitespace-pre-wrap">
-                    {{ article.content }}
+                
+                <div v-else>
+                    <div class="prose-text text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap mb-8">
+                        {{ article.content }}
+                    </div>
+
+                    <div v-if="article.images && article.images.length > 0" 
+                         class="grid grid-cols-1 md:grid-cols-2 gap-4 my-8">
+                        <div v-for="(img, imgIdx) in article.images" :key="imgIdx" 
+     class="group relative overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm bg-gray-50 dark:bg-gray-900/50">
+    <img :src="img" 
+         class="w-full h-64 object-cover transition-transform duration-700 group-hover:scale-110 cursor-zoom-in"
+         @click.stop="previewImage = img"> </div>
+                    </div>
                 </div>
             </div>
 
@@ -533,6 +579,17 @@ nav button:hover {
                 </footer>
             </main>
         </div>
+        <transition name="fade">
+    <div v-if="previewImage" 
+         @click="previewImage = null" 
+         class="fixed inset-0 z-[999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-fade-in">
+        <img :src="previewImage" 
+             class="max-w-full max-h-full rounded-lg shadow-2xl transition-transform duration-300" 
+             alt="预览图">
+        
+        <div class="absolute top-5 right-5 text-white/50 text-sm font-mono">Click anywhere to close</div>
+    </div>
+</transition>
     </div>
 </div>
 
@@ -541,182 +598,121 @@ nav button:hover {
 
     createApp({
         setup() {
-            const runtime = ref('00:00:00');
-            const ripples = ref([]);
-            const dots = ref([]);
-            const isDark = ref(false);
-            const sidebarOpen = ref(false);
-            const showIntro = ref(true);
-            const showIntroScreen = ref(true);
-            const currentPage = ref('about');
-            const statusList = ['Coding...', 'Gaming...', 'Thinking...', 'Sleeping...', 'VRChatting...'];
-            const randomStatus = ref(statusList[Math.floor(Math.random() * statusList.length)]);
+            // 1. 从 data.js 接入数据
+    const personalInfo = ref(SITE_DATA.personalInfo);
+    const backgroundImages = ref(SITE_DATA.backgroundImages);
+    const navItems = SITE_DATA.navItems;
+    const socialLinks = SITE_DATA.socialLinks;
+    const skills = SITE_DATA.skills;
+    const journey = ref(SITE_DATA.journey);
+    const articles = ref(SITE_DATA.articles);
+    const quotes = SITE_DATA.quotes;
 
-            const quotes = [
-            "勿以物喜，勿以己悲",
-            "我们的理想将染红河川",
-            "在虚拟世界里寻找真实的连接。",
-            "所谓理想，就是还没被生活磨平的棱角。",
-            "今天的 maimai 也是全 FC 吗？"
-            ];
-            const currentQuote = ref(quotes[Math.floor(Math.random() * quotes.length)]);
+    // 2. 响应式状态定义
+    const runtime = ref('00:00:00');
+    const ripples = ref([]);
+    const dots = ref([]);
+    const isDark = ref(false);
+    const sidebarOpen = ref(false);
+    const showIntro = ref(true);
+    const showIntroScreen = ref(true);
+    const currentPage = ref('about');
+    const expandedIndex = ref(null); 
+    const previewImage = ref(null); // 预览图片变量
+    const currentBgIndex = ref(0);
+    let bgInterval = null;
 
-            // 处理点击特效
-const handleGlobalClick = (e) => {
-    const id = Date.now();
-    ripples.value.push({ id, x: e.clientX, y: e.clientY });
-    setTimeout(() => {
-        ripples.value = ripples.value.filter(r => r.id !== id);
-    }, 600);
-};
+    // 3. 随机初始值
+    const randomStatus = ref(personalInfo.value.statusList[Math.floor(Math.random() * personalInfo.value.statusList.length)]);
+    const currentQuote = ref(quotes[Math.floor(Math.random() * quotes.length)]);
 
-// 处理移动拖拽粒子
-const handleGlobalMouseMove = (e) => {
-    // 限制频率，每移动一下产生一个点
-    if (Math.random() > 0.8) { // 调整数值改变粒子密度
-        const id = Math.random();
-        dots.value.push({ id, x: e.clientX, y: e.clientY });
-        setTimeout(() => {
-            dots.value = dots.value.filter(d => d.id !== id);
-        }, 500);
-    }
-};
-            
-            // 背景图片轮播列表
-            const backgroundImages = ref([
-                'assets/bg.png',
-                'assets/bg1.png',
-                'assets/bg2.png',
-                'assets/bg3.png',
-                'assets/bg4.png',
-                'assets/bg5.png'
-            ]);
-            const currentBgIndex = ref(0);
-            let bgInterval = null;
+    // 4. 功能函数
+    const handleGlobalClick = (e) => {
+        const id = Date.now();
+        ripples.value.push({ id, x: e.clientX, y: e.clientY });
+        setTimeout(() => ripples.value = ripples.value.filter(r => r.id !== id), 600);
+    };
 
-            const personalInfo = {
-                name: "Leafer",
-                avatar: "assets/Leafer.jpg",
-                bio: "我不追求成为技术的大神，但我渴望成为一名真诚的表达者。",
-                tags: [  "VRC", ],
-            };
-
-            const navItems = [
-                { id: 'about', name: '关于我', icon: 'fas fa-user-leaf' },
-                { id: 'journey', name: '心流', icon: 'fas fa-mountain' },
-                { id: 'thoughts', name: '帖子', icon: 'fas fa-feather-alt' },
-            ];
-
-            const socialLinks = [
-                { icon: 'fab fa-github', href: 'https://github.com/Leafer0' },
-                { icon: 'fas fa-envelope', href: '2556205521@qq.com' },
-                { icon: 'fas fa-rss', href: '#' },
-            ];
-
-            const skills = [
-                { name: 'Vue.js', icon: 'fab fa-vuejs', color: 'text-green-500' },
-                { name: 'Tailwind', icon: 'fab fa-css3-alt', color: 'text-blue-400' },
-            ];
-
-            const journey = [
-                 { year:'2025.12.23',title:'思考',content:'思考什么好呢，思考我的人生，我的生活并没有那么愉快，至于是好是坏，就由时间验证。'},
-                { year:'2025.12.23',title:'思考',content:'思考什么好呢，思考我的人生，我的生活并没有那么愉快，至于是好是坏，就由时间验证。'},
-                { year: '2025.12.21', title:'诞生了',content:'我突然想制作这个网站，并且着手开始操作。本来这里是记录曾经我自己的感受，我思考之后决定放弃，因为我对曾经并不留恋。'},
-                { year: '2005.5.23', title: '我出生了', content: '最值得庆祝的时刻，接着迎接世界吧。' }
-            ];
-
-           const articles = [
-    { 
-        title: 'Hello World', 
-        date: '2025.12.21', 
-        summary: '此网站见证我的新生，此贴证明我的存在',
-        content: 'Hello World！' // 新增完整内容
-    }
-];
-
-// 新增一个变量来记录当前展开的文章索引
-const expandedIndex = ref(null); 
-
-const toggleArticle = (index) => {
-    if (expandedIndex.value === index) {
-        expandedIndex.value = null; // 如果已经是展开状态，则收起
-    } else {
-        expandedIndex.value = index; // 展开点击的文章
-    }
-};
-
-            const changePage = (pageId) => {
-                currentPage.value = pageId;
-                sidebarOpen.value = false;
-                const main = document.querySelector('main');
-                if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
-            };
-
-            const toggleTheme = () => {
-                isDark.value = !isDark.value;
-                watch(isDark, (newVal) => {
-                if (newVal) {
-                    document.documentElement.classList.add('dark');
-                } else {
-                    document.documentElement.classList.remove('dark');
-                }
-            }, { immediate: true });
-            };
-
-            // 预加载图片并启动轮播
-            const initBackground = () => {
-                backgroundImages.value.forEach(src => {
-                    const img = new Image();
-                    img.src = src;
-                });
-                
-                bgInterval = setInterval(() => {
-                    currentBgIndex.value = (currentBgIndex.value + 1) % backgroundImages.value.length;
-                }, 5000);
-            };
-            
-
-            onMounted(() => {
-                const startTime = Date.now();
-    setInterval(() => {
-        const diff = Math.floor((Date.now() - startTime) / 1000);
-        const h = Math.floor(diff / 3600).toString().padStart(2, '0');
-        const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
-        const s = (diff % 60).toString().padStart(2, '0');
-        runtime.value = `${h}:${m}:${s}`;
-    }, 1000);
-                window.addEventListener('mousedown', handleGlobalClick);
-    window.addEventListener('mousemove', handleGlobalMouseMove);
-    //
-    if (window.matchMedia('(prefers-color-scheme: dark)').matches) isDark.value = true;
-    
-    initBackground(); //
-
-    // 延时顺序：先显示文字 -> 2.5秒后拉开大门 -> 3.7秒后彻底移除遮罩
-    setTimeout(() => {
-        showIntro.value = false; // 触发 CSS 中的拉门和缩放动画
-        setTimeout(() => {
-            showIntroScreen.value = false; // 销毁组件
-        }, 1200); // 这里的延时应与 CSS 的 1.2s transition 同步
-    }, 2500); 
-});
-
-            onUnmounted(() => {
-                if (bgInterval) clearInterval(bgInterval);
-            });
-
-            return {
-                isDark, sidebarOpen, showIntro, showIntroScreen, currentPage,
-                backgroundImages, currentBgIndex,
-                personalInfo, navItems, socialLinks, skills, journey, articles,
-                changePage, toggleTheme,
-                articles,expandedIndex, 
-                toggleArticle,currentQuote,personalInfo,ripples,dots,runtime
-                
-            };
+    const handleGlobalMouseMove = (e) => {
+        if (Math.random() > 0.8) {
+            const id = Math.random();
+            dots.value.push({ id, x: e.clientX, y: e.clientY });
+            setTimeout(() => dots.value = dots.value.filter(d => d.id !== id), 500);
         }
+    };
+
+    const toggleArticle = (index) => {
+        expandedIndex.value = (expandedIndex.value === index) ? null : index;
+    };
+
+    const changePage = (pageId) => {
+        currentPage.value = pageId;
+        sidebarOpen.value = false;
+        setTimeout(() => {
+            const main = document.querySelector('main');
+            if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 100);
+    };
+
+    const toggleTheme = () => {
+        isDark.value = !isDark.value;
+        if (isDark.value) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    };
+
+    // 5. 生命周期钩子
+    onMounted(() => {
+        // 运行时间计时
+        const startTime = Date.now();
+        setInterval(() => {
+            const diff = Math.floor((Date.now() - startTime) / 1000);
+            const h = Math.floor(diff / 3600).toString().padStart(2, '0');
+            const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+            const s = (diff % 60).toString().padStart(2, '0');
+            runtime.value = `${h}:${m}:${s}`;
+        }, 1000);
+
+        window.addEventListener('mousedown', handleGlobalClick);
+        window.addEventListener('mousemove', handleGlobalMouseMove);
+        
+        // 自动检测系统主题
+        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            isDark.value = true;
+            document.documentElement.classList.add('dark');
+        }
+
+        // 启动背景轮播
+        bgInterval = setInterval(() => {
+            currentBgIndex.value = (currentBgIndex.value + 1) % backgroundImages.value.length;
+        }, 5000);
+
+        // 入场动画
+        setTimeout(() => {
+            showIntro.value = false;
+            setTimeout(() => showIntroScreen.value = false, 1200);
+        }, 2500);
+    });
+
+    onUnmounted(() => {
+        if (bgInterval) clearInterval(bgInterval);
+        window.removeEventListener('mousedown', handleGlobalClick);
+        window.removeEventListener('mousemove', handleGlobalMouseMove);
+    });
+
+    return {
+        personalInfo, backgroundImages, navItems, socialLinks, skills, journey, articles, 
+        quotes, currentQuote, randomStatus, isDark, sidebarOpen, showIntro, currentBgIndex,
+        showIntroScreen, currentPage, expandedIndex, previewImage, runtime, ripples, dots,
+        changePage, toggleTheme, toggleArticle
+    };
+}
     }).mount('#app');
 </script>
+<script src='//unpkg.com/valine/dist/Valine.min.js'></script>
 <script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
+
 </body>
 </html>
