@@ -105,7 +105,7 @@ const SITE_DATA = {
             title: 'Hello World', 
             date: '2025.12.21', 
             summary: '此网站见证我的新生，此贴证明我的存在',
-            content: 'Hello World！这是我搭建数字花园的第一步。',
+            content: 'Hello World！',
             images: []
         }
     ]
