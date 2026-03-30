@@ -1,4 +1,5 @@
 const SITE_DATA = {
+    
     // 个人基础信息
     personalInfo: {
         name: "Leafer",
@@ -108,5 +109,19 @@ const SITE_DATA = {
             content: 'Hello World！',
             images: []
         }
+    ],
+    playlist: [{ 
+            title: '三年幻想郷', 
+            artist: '神乃木製作所', 
+            url: 'music/1.mp3', 
+            cover: 'assets/TOUHOU.jpg' 
+        } ,
+        
+        { 
+            title: '告别游戏', 
+            artist: 'Amazarashi', 
+            url: 'music/2.mp3', 
+            cover: 'assets/amazarashi1.jpg' 
+        } 
     ]
 };

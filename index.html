@@ -294,6 +294,14 @@ nav button:hover {
 body:has(.cursor-zoom-out) {
     overflow: hidden;
 }
+
+@keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+.animate-spin-slow {
+    animation: spin-slow 12s linear infinite;
+}
     </style>
 </head>
 <body :class="['bg-paper dark:bg-gray-950 transition-colors duration-700', showIntroScreen ? 'overflow-hidden' : '']">
@@ -308,21 +316,22 @@ body:has(.cursor-zoom-out) {
      class="cursor-dot" 
      :style="{ left: dot.x + 'px', top: dot.y + 'px' }">
 </div>
-    <!-- 入场动画遮罩层 -->
-    <div v-if="showIntroScreen" class="fixed inset-0 z-[100] overflow-hidden">
-    <div :class="['absolute inset-y-0 left-0 w-1/2 bg-paper dark:bg-gray-900 intro-bg-left', !showIntro ? '-translate-x-full' : '']"></div>
-    <div :class="['absolute inset-y-0 right-0 w-1/2 bg-paper dark:bg-gray-900 intro-bg-right', !showIntro ? 'translate-x-full' : '']"></div>
+   <div v-if="showIntroScreen" 
+     @click="startEverything"
+     class="fixed inset-0 z-[100] flex flex-col items-center justify-center cursor-pointer">
     
-    <div :class="['relative z-[110] flex flex-col items-center justify-center h-full transition-all duration-700', !showIntro ? 'intro-content-leave' : '']">
-        <div class="overflow-hidden">
-            <h1 class="text-4xl md:text-6xl font-bold font-serif shimmer-text mb-4">
-                Leafer's Garden
-            </h1>
+    <div :class="['absolute inset-y-0 left-0 w-1/2 bg-paper dark:bg-gray-900 transition-transform duration-1000', !showIntro ? '-translate-x-full' : '']"></div>
+    <div :class="['absolute inset-y-0 right-0 w-1/2 bg-paper dark:bg-gray-900 transition-transform duration-1000', !showIntro ? 'translate-x-full' : '']"></div>
+    
+    <div :class="['relative z-[110] flex flex-col items-center transition-all duration-700', !showIntro ? 'opacity-0 scale-110 blur-md' : 'opacity-100']">
+        <div class="relative w-24 h-24 mb-8">
+            <div class="absolute inset-0 border-4 border-emerald-500/20 rounded-full"></div>
+            <div class="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
         </div>
+        <h1 class="text-4xl md:text-6xl font-bold font-serif shimmer-text mb-4">Leafer's Garden</h1>
         <div class="line-grow mb-6"></div>
-        <p class="text-gray-400 tracking-[0.3em] uppercase text-xs md:text-sm animate-pulse">
-            Establishing Connection ...
-        </p>
+        <div class="text-emerald-500 font-mono animate-pulse text-lg">CLICK TO ENTER</div>
+        <p class="text-gray-400 tracking-widest text-xs mt-2">点击进入</p>
     </div>
 </div>
         <div class="fixed inset-0 z-0 overflow-hidden bg-gray-200 dark:bg-gray-900">
@@ -514,10 +523,10 @@ body:has(.cursor-zoom-out) {
                                
                                 <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">PIC . 03</p>
                                 </div>
-                                <p>高强度网络冲浪，古今往来热门梗基本都知道，唐梗新梗都不落，完全无雷。嘴较毒蛇，心较腹黑，道德感永远在上下横跳。</p>
-                                <p>情绪极其稳定，爱好辩论，有时会在网上高谈阔论指点江山（见证），此点不便示人，如有冒犯屏蔽即可。</p>
-                                <p>对人生意义和自我情感的研究较多，有想法随时和我交流</p>
-                                <P>歌单内充满了日本流行曲，尤其喜欢amazarashi，偶尔听术曲音游曲，早期的国内金曲也有涉猎，</P>
+                                <p>高强度网络冲浪，古今往来热门梗基本都知道，唐梗新梗都不落，完全无雷。嘴较毒蛇，心较腹黑，道德感上下横跳。</p>
+                                <p>情绪极其稳定，情商其实挺高但一般不展露，对人生意义和自我情绪的研究较多，对一些社会现象也有些许了解,有想法和见解随时和我交流。</p>
+                               
+                                <P>歌单内充满了日本流行曲，主推amazarashi，偶尔听术曲音游曲，早期的国内金曲也有涉猎，</P>
                                 <p>"你能找到这里，说明你是从VRC看到了我的博客链接~这只是个github提供的静态网页部署界面，也许我将在以后拥有服务器之后推出评论功能。这是个游戏，对一些人来说也是第二人生。"
                                     
                                 </p>
@@ -615,6 +624,38 @@ body:has(.cursor-zoom-out) {
         <div class="absolute top-5 right-5 text-white/50 text-sm font-mono">Click anywhere to close</div>
     </div>
 </transition>
+<div class="fixed bottom-6 right-6 z-[60] flex flex-col items-end gap-3 group">
+            <transition name="fade">
+                <div v-if="musicOpen" 
+                     class="p-4 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-3xl border border-emerald-500/20 shadow-2xl flex items-center gap-4 w-72 animate-fade-in">
+                    <div class="relative flex-shrink-0">
+                        <img :src="currentTrack.cover" 
+                             :class="['w-16 h-16 rounded-full object-cover border-2 border-emerald-500/20 shadow-lg', isPlaying ? 'animate-spin-slow' : '']">
+                        <div class="absolute inset-0 flex items-center justify-center">
+                            <div class="w-3 h-3 bg-gray-900 rounded-full border-2 border-white/20"></div>
+                        </div>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="text-sm font-bold truncate dark:text-white">{{ currentTrack.title }}</div>
+                        <div class="text-[10px] text-gray-500 font-mono mb-2 truncate">{{ currentTrack.artist }}</div>
+                        <div class="flex items-center gap-4 text-emerald-500">
+                            <button @click="prevTrack" class="hover:scale-120 transition-transform"><i class="fas fa-step-backward"></i></button>
+                            <button @click="togglePlay" class="w-8 h-8 flex items-center justify-center bg-emerald-500 text-white rounded-full hover:scale-110 transition-transform">
+                                <i :class="isPlaying ? 'fas fa-pause' : 'fas fa-play'"></i>
+                            </button>
+                            <button @click="nextTrack" class="hover:scale-120 transition-transform"><i class="fas fa-step-forward"></i></button>
+                        </div>
+                    </div>
+                </div>
+            </transition>
+
+            <button @click="musicOpen = !musicOpen" 
+                    class="w-14 h-14 bg-emerald-500 text-white rounded-full shadow-lg shadow-emerald-500/40 flex items-center justify-center hover:scale-110 transition-transform active:scale-95">
+                <i class="fas fa-music text-xl" :class="{'animate-pulse': isPlaying}"></i>
+            </button>
+            
+            <audio ref="audioRef" :src="currentTrack.url" @ended="nextTrack" @play="isPlaying = true" @pause="isPlaying = false"></audio>
+        </div>
     </div>
 </div>
 
@@ -633,6 +674,13 @@ body:has(.cursor-zoom-out) {
     const articles = ref(SITE_DATA.articles);
     const quotes = SITE_DATA.quotes;
 
+    const playlist = SITE_DATA.playlist || [];
+    const musicOpen = ref(false);
+    const isPlaying = ref(false);
+    const currentIndex = ref(0);
+    const audioRef = ref(null);
+    const currentTrack = Vue.computed(() => playlist[currentIndex.value] || {});
+
     // 2. 响应式状态定义
     const runtime = ref('00:00:00');
     const ripples = ref([]);
@@ -650,6 +698,50 @@ body:has(.cursor-zoom-out) {
     // 3. 随机初始值
     const randomStatus = ref(personalInfo.value.statusList[Math.floor(Math.random() * personalInfo.value.statusList.length)]);
     const currentQuote = ref(quotes[Math.floor(Math.random() * quotes.length)]);
+
+   const togglePlay = () => {
+    if (!audioRef.value) return;
+    
+    // 如果 src 为空或者加载失败，尝试重新加载
+    if (!audioRef.value.src || audioRef.value.error) {
+        audioRef.value.load();
+    }
+
+    if (audioRef.value.paused) {
+        const playPromise = audioRef.value.play();
+        if (playPromise !== undefined) {
+            playPromise.then(() => {
+                isPlaying.value = true;
+            }).catch(err => {
+                console.error("播放失败:", err);
+            });
+        }
+    } else {
+        audioRef.value.pause();
+        isPlaying.value = false;
+    }
+};
+
+const nextTrack = () => {
+    currentIndex.value = (currentIndex.value + 1) % playlist.length;
+    // 关键：切换 src 后需要等待 DOM 更新再播放
+    Vue.nextTick(() => {
+        audioRef.value.load(); // 强制重新加载新资源
+        audioRef.value.play().catch(() => {
+            isPlaying.value = false; // 捕获浏览器拦截
+        });
+    });
+};
+
+const prevTrack = () => {
+    currentIndex.value = (currentIndex.value - 1 + playlist.length) % playlist.length;
+    Vue.nextTick(() => {
+        audioRef.value.load();
+        audioRef.value.play().catch(() => {
+            isPlaying.value = false;
+        });
+    });
+};
 
     // 4. 功能函数
     const handleGlobalClick = (e) => {
@@ -688,6 +780,24 @@ body:has(.cursor-zoom-out) {
         }
     };
 
+    const startEverything = () => {
+    // 1. 立即尝试播放音乐 (这是浏览器允许播放的唯一窗口期)
+    if (audioRef.value) {
+        audioRef.value.play().then(() => {
+            isPlaying.value = true;
+            musicOpen.value = true; // 让播放器展开，显示正在播放
+        }).catch(err => {
+            console.log("播放被拦截，请确保点击了屏幕:", err);
+        });
+    }
+
+    // 2. 触发入场动画消失逻辑
+    showIntro.value = false;
+    setTimeout(() => {
+        showIntroScreen.value = false;
+    }, 1200); // 1.2秒后彻底移除遮罩
+};
+
     // 5. 生命周期钩子
     onMounted(() => {
         // 运行时间计时
@@ -715,10 +825,7 @@ body:has(.cursor-zoom-out) {
         }, 5000);
 
         // 入场动画
-        setTimeout(() => {
-            showIntro.value = false;
-            setTimeout(() => showIntroScreen.value = false, 1200);
-        }, 2500);
+       
     });
 
     onUnmounted(() => {
@@ -731,7 +838,8 @@ body:has(.cursor-zoom-out) {
         personalInfo, backgroundImages, navItems, socialLinks, skills, journey, articles, 
         quotes, currentQuote, randomStatus, isDark, sidebarOpen, showIntro, currentBgIndex,
         showIntroScreen, currentPage, expandedIndex, previewImage, runtime, ripples, dots,
-        changePage, toggleTheme, toggleArticle
+        changePage, toggleTheme, toggleArticle,startEverything,
+        musicOpen, isPlaying, currentTrack, audioRef, togglePlay, nextTrack, prevTrack
     };
 }
     }).mount('#app');
