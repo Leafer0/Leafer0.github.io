@@ -94,8 +94,37 @@ const child = spawn(browserPath, [
   await sleep(4000);
   await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'})); true`);
   await sleep(2000);
+
+  // 滚到底触发懒加载，然后**轮询等待图片真的解码完成**。
+  // 不能靠固定 sleep：本地是缓存命中所以很快，线上要下载几百 KB，
+  // 只等 2.5 秒会把"还在下载"误判成"图片损坏"（真发生过）。
   await evaluate(`window.scrollTo(0, document.body.scrollHeight); true`);
-  await sleep(2500); // 等懒加载图片就位
+  // 逐张把图片滚进视口，再等它解码完成。
+  // 之前用"滚到某个百分比然后固定等待"的做法不可靠：
+  // 位置算不准时最后一张图始终没进过视口，就永远不会开始加载，
+  // 于是被误判成"图片损坏"。滚动位置必须是明确的，不能靠算。
+  const deadline = Date.now() + 30000;
+  let pendingImgs = -1;
+  let round = 0;
+  while (Date.now() < deadline) {
+    round++;
+    // 让每一张图都真正进入过视口
+    await evaluate(`(() => {
+      const imgs = [...document.querySelectorAll('#main figure img')];
+      imgs.forEach(i => { try { i.scrollIntoView({ block: 'center' }); } catch (e) {} });
+      return imgs.length;
+    })()`);
+    await sleep(900);
+    pendingImgs = await evaluate(`(() => {
+      const imgs = [...document.querySelectorAll('#main figure img')];
+      return imgs.filter(i => !(i.complete && i.naturalWidth > 0)).length;
+    })()`);
+    if (pendingImgs === 0) break;
+  }
+  console.log('\n  等待配图加载: '
+    + (pendingImgs === 0 ? `全部就绪（第 ${round} 轮）` : `仍有 ${pendingImgs} 张未完成（超时）`));
+  await evaluate(`window.scrollTo(0, 0); true`);
+  await sleep(500);
 
   const dom = await evaluate(`(() => {
     const section = document.querySelector('[key="about"], #main > div');
