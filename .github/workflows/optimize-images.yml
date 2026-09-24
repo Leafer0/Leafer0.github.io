@@ -1,0 +1,68 @@
+# ============================================================
+#  自动压缩后台上传的图片
+# ============================================================
+#  为什么需要这个：
+#    你在 /admin 后台上传的是手机原图，一张动辄 3~8 MB。
+#    如果直接进仓库，仓库会迅速膨胀，访客打开页面也要等很久。
+#    这个工作流会在每次推送后检查 img/ 里有没有未压缩的图片，
+#    有就压成 WebP、删掉原图、改好 data.json 里的引用，然后自动提交。
+#
+#  结果：你在后台只管上传，压缩这步不用操心。
+# ============================================================
+name: 压缩上传的图片
+
+on:
+  push:
+    branches: [main]
+    # 只有图片目录变化时才触发，避免每次改文案都白跑一遍
+    paths:
+      - 'img/**'
+  # 也可以在 Actions 页面手动点一下运行
+  workflow_dispatch:
+
+# 需要写权限，才能把压缩结果提交回仓库
+permissions:
+  contents: write
+
+# 避免连续上传多张图时几个任务同时改 data.json 互相覆盖
+concurrency:
+  group: optimize-images-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  optimize:
+    runs-on: ubuntu-latest
+    # 防止工作流自己提交后再次触发自己，造成无限循环
+    if: "!contains(github.event.head_commit.message, '[skip-optimize]')"
+
+    steps:
+      - name: 检出仓库
+        uses: actions/checkout@v4
+        with:
+          # 用内置 token 即可，无需额外配置密钥
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 安装 Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安装依赖
+        run: npm install --no-audit --no-fund
+
+      - name: 压缩 img/ 下的新图片
+        id: run
+        run: node tools/optimize-uploads.js
+
+      - name: 提交压缩结果
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A img data.json
+          if git diff --cached --quiet; then
+            echo "没有需要提交的变更。"
+            exit 0
+          fi
+          # 提交信息里带上 [skip-optimize]，避免这个提交再次触发本工作流
+          git commit -m "chore: 自动压缩上传的图片 [skip-optimize]"
+          git push

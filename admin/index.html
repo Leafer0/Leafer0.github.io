@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>内容管理 · Leafer's Garden</title>
+
+<!--
+  后台不应该被搜索引擎收录，否则别人能搜到你的登录入口。
+  注意：noindex 只是"请求不收录"，真正的防线是 GitHub 授权。
+-->
+<meta name="robots" content="noindex, nofollow">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✍️</text></svg>">
+
+<style>
+  /* 后台自身的加载态。不依赖主站的 style.css，避免互相影响 */
+  body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f8fafc;
+    color: #0f172a;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0b0f14; color: #e5e7eb; }
+  }
+  #loading {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    gap: 1rem;
+  }
+  .spinner {
+    width: 2.5rem; height: 2.5rem;
+    border: 3px solid rgba(16,185,129,.25);
+    border-top-color: #10b981;
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .hint { font-size: .8rem; opacity: .6; }
+</style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div>正在加载内容管理后台…</div>
+  <div class="hint">首次加载需要从 CDN 取脚本，请稍候</div>
+</div>
+
+<!--
+  Sveltia CMS —— Git-based 内容管理后台。
+
+  它做的事：提供一个网页编辑界面，你写的内容由它直接 commit 到本仓库，
+  GitHub Pages 随后自动重新发布。所以**不需要服务器、不需要数据库、不需要备案**。
+
+  为什么选 Sveltia 而不是 Decap CMS：
+    Sveltia 是 Netlify/Decap CMS 的现代重写版，兼容同一份 config.yml。
+    而 Decap 依赖的 Netlify Identity 官方已不再推荐，新项目官方自己建议用 Sveltia。
+
+  加载失败时的兜底：下面的 script 有 onerror，会把提示显示出来，
+  而不是让你盯着一个永远转圈的加载动画猜发生了什么。
+-->
+<script src="https://unpkg.com/@sveltia/cms/dist/sveltia-cms.js"
+        onerror="document.getElementById('loading').innerHTML =
+          '<div style=&quot;max-width:32rem;text-align:center;line-height:2&quot;>'
+          + '<h1 style=&quot;font-size:1.1rem&quot;>后台脚本加载失败</h1>'
+          + '<p style=&quot;opacity:.7;font-size:.9rem&quot;>未能从 unpkg CDN 取到 sveltia-cms.js。<br>'
+          + '常见原因：网络无法访问 unpkg，或该 CDN 临时故障。</p>'
+          + '<p style=&quot;opacity:.6;font-size:.8rem&quot;>可以刷新重试；若长期无法访问，'
+          + '可把 sveltia-cms.js 下载到本仓库 admin/ 目录下改为本地引用。</p></div>';"
+></script>
+
+</body>
+</html>

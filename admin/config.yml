@@ -1,0 +1,254 @@
+# ============================================================
+#  内容管理后台配置（Sveltia CMS）
+# ============================================================
+#  打开方式：https://<你的域名>/admin/
+#
+#  这份配置定义了后台里能编辑哪些字段。
+#
+#  ⚠️ 最重要的一条规则：
+#     data.json 里的**每一个字段都必须在这里出现**。
+#     因为 CMS 保存时会按这份配置重写整个文件，
+#     配置里没写的字段会被直接丢掉（比如忘了配 navItems，图标就没了）。
+#     改完配置后请跑：node tools/verify-cms-config.js
+#     它会逐字段比对，漏了会明确告诉你漏了哪个。
+# ============================================================
+
+backend:
+  name: github
+  repo: Leafer0/Leafer0.github.io
+  branch: main
+  # ------------------------------------------------------------
+  # 关于登录（auth）：
+  #
+  # 只有你自己写文章，所以默认用「访问令牌」方式，不需要搭任何额外服务：
+  #   1. 去 https://github.com/settings/personal-access-tokens/new
+  #      创建一个 Fine-grained token，仓库选 Leafer0.github.io，
+  #      权限只给 Contents: Read and write，有效期按需要选
+  #   2. 打开 /admin/，点 "Sign In with Token"，把令牌粘进去
+  #   3. 令牌只存在你当前浏览器本地，不会上传到任何第三方
+  #
+  # 如果以后你想让不懂技术的朋友也能登录（不用自己建令牌），
+  # 再按 README「后台登录」一节搭一个 Cloudflare Worker 的 OAuth 服务，
+  # 然后在下面取消注释并填入 Worker 地址即可：
+  #
+  # base_url: https://sveltia-cms-auth.<你的子域>.workers.dev
+  # ------------------------------------------------------------
+
+# 媒体（图片）存放位置。
+# 上传的图片会进 img/ 目录，和现有图片在一起。
+# 仓库里的 GitHub Action 会自动把它们压缩成 WebP，见 .github/workflows/optimize-images.yml
+media_folder: img
+public_folder: img
+
+# 界面语言说明：
+#   这里刻意没有配 locale —— Sveltia CMS 的配置 schema 里没有这个选项，
+#   写了会收到 "The `locale` option is not supported ... It will be ignored" 警告。
+#   它的界面语言是自动跟随浏览器设置的，中文浏览器会自动显示中文，无需配置。
+
+# 编辑器用所见即所得模式，写中文长文更顺手
+editor:
+  preview: true
+
+collections:
+  # ==========================================================
+  # 1. 站点设置
+  # ==========================================================
+  - name: settings
+    label: 站点设置
+    description: 网站标题、分享卡片文案
+    files:
+      - name: site
+        label: SEO 与分享
+        file: data.json
+        fields:
+          - label: 站点信息
+            name: site
+            widget: object
+            fields:
+              - { label: 标题, name: title, widget: string }
+              - { label: 副标题, name: subtitle, widget: string }
+              - { label: 搜索摘要, name: description, widget: text, hint: 显示在搜索结果和分享卡片里 }
+              - { label: 分享预览图, name: shareImage, widget: image }
+              - { label: 关键词, name: keywords, widget: list, field: { label: 关键词, name: keyword, widget: string } }
+
+          - label: 个人基础信息
+            name: personalInfo
+            widget: object
+            fields:
+              - { label: 昵称, name: name, widget: string }
+              - { label: 头像, name: avatar, widget: image }
+              - label: 状态文案
+                name: statusList
+                widget: list
+                hint: 每次刷新随机显示一条
+                field: { label: 状态, name: status, widget: string }
+              - { label: 一句话签名, name: bio, widget: string }
+              - label: 标签
+                name: tags
+                widget: list
+                field: { label: 标签, name: tag, widget: string }
+
+          - label: 入场页
+            name: intro
+            widget: object
+            fields:
+              - { label: 标题, name: title, widget: string }
+              - { label: 中文提示, name: hint, widget: string }
+              - { label: 英文提示, name: englishHint, widget: string }
+
+          - label: 导航项
+            name: navItems
+            widget: list
+            fields:
+              - { label: 页面标识, name: id, widget: string, hint: 只能是 about / journey / thoughts，改错会导致页面空白 }
+              - { label: 显示名称, name: name, widget: string }
+              - { label: 图标, name: icon, widget: select, options: [user, mountain, feather] }
+
+          - label: 社交链接
+            name: socialLinks
+            widget: list
+            fields:
+              - { label: 图标, name: icon, widget: select, options: [github, envelope, rss] }
+              - { label: 链接, name: href, widget: string }
+              - { label: 无障碍名称, name: label, widget: string }
+
+          - label: 技能
+            name: skills
+            widget: list
+            fields:
+              - { label: 名称, name: name, widget: string }
+              - { label: 图标, name: icon, widget: select, options: [vue, js, css] }
+              - label: 颜色
+                name: color
+                widget: select
+                options: ['text-emerald-500', 'text-blue-400', 'text-yellow-400']
+
+          - label: 随机语录
+            name: quotes
+            widget: list
+            field: { label: 语录, name: quote, widget: string }
+
+          - label: 背景轮播图
+            name: backgroundImages
+            widget: list
+            hint: 建议把体积最小的图放第一个，首屏更快
+            field: { label: 图片, name: image, widget: image }
+
+          - { label: 背景兜底色, name: backgroundBaseColor, widget: string, required: false }
+          - { label: 背景切换间隔(毫秒), name: backgroundInterval, widget: number, required: false, value_type: int }
+
+  # ==========================================================
+  # 2. 关于我
+  # ==========================================================
+  - name: about
+    label: 关于我
+    description: 首页自我介绍，支持正文/小标题/图片组三种段落
+    files:
+      - name: about
+        label: 自我介绍
+        file: data.json
+        fields:
+          - label: 关于我
+            name: about
+            widget: object
+            fields:
+              - { label: 大标题, name: title, widget: string }
+              - label: 段落
+                name: paragraphs
+                widget: list
+                hint: 用「类型」决定这一段是正文、小标题还是图片组
+                types:
+                  - label: 正文
+                    name: text
+                    widget: object
+                    fields:
+                      - { label: 类型, name: type, widget: hidden, default: text }
+                      - { label: 内容, name: value, widget: text }
+                  - label: 小标题
+                    name: heading
+                    widget: object
+                    fields:
+                      - { label: 类型, name: type, widget: hidden, default: heading }
+                      - { label: 内容, name: value, widget: string }
+                  - label: 图片组
+                    name: gallery
+                    widget: object
+                    fields:
+                      - { label: 类型, name: type, widget: hidden, default: gallery }
+                      - label: 图片
+                        name: images
+                        widget: list
+                        fields:
+                          - { label: 图片, name: src, widget: image }
+                          - { label: 说明文字, name: caption, widget: string }
+                          - { label: 宽度(像素), name: w, widget: number, value_type: int }
+                          - { label: 高度(像素), name: h, widget: number, value_type: int }
+                          - { label: 倾斜角度, name: rotate, widget: number, required: false }
+
+  # ==========================================================
+  # 3. 历程（心流）
+  # ==========================================================
+  - name: journey
+    label: 心流 / 历程
+    description: 时间线记录
+    files:
+      - name: journey
+        label: 时间线
+        file: data.json
+        fields:
+          - label: 历程
+            name: journey
+            widget: list
+            fields:
+              - { label: 日期, name: year, widget: string, hint: 格式随意，例如 2026.3.25 }
+              - { label: 标题, name: title, widget: string }
+              - { label: 内容, name: content, widget: text }
+
+  # ==========================================================
+  # 4. 帖子
+  # ==========================================================
+  - name: articles
+    label: 帖子
+    description: 图文随笔
+    files:
+      - name: articles
+        label: 全部帖子
+        file: data.json
+        fields:
+          - label: 帖子
+            name: articles
+            widget: list
+            summary: '{{fields.title}} · {{fields.date}}'
+            fields:
+              - { label: 标题, name: title, widget: string }
+              - { label: 日期, name: date, widget: string, hint: 例如 2026.1.26 }
+              - { label: 摘要, name: summary, widget: text, hint: 折叠状态下显示，建议一到两句话 }
+              - { label: 正文, name: content, widget: text }
+              - label: 配图
+                name: images
+                widget: list
+                required: false
+                fields:
+                  - { label: 图片, name: src, widget: image }
+                  - { label: 宽度(像素), name: w, widget: number, value_type: int }
+                  - { label: 高度(像素), name: h, widget: number, value_type: int }
+
+  # ==========================================================
+  # 5. 音乐
+  # ==========================================================
+  - name: music
+    label: 歌单
+    description: 右下角播放器的曲目
+    files:
+      - name: playlist
+        label: 曲目列表
+        file: data.json
+        fields:
+          - label: 歌单
+            name: playlist
+            widget: list
+            fields:
+              - { label: 曲名, name: title, widget: string }
+              - { label: 艺术家, name: artist, widget: string }
+              - { label: 音频文件路径, name: url, widget: string, hint: 把 mp3 放进 music/ 目录后填 music/文件名.mp3 }
+              - { label: 封面, name: cover, widget: image }

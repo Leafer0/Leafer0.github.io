@@ -10,15 +10,30 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const src = fs.readFileSync(path.join(ROOT, 'data.js'), 'utf8');
 
-// data.js 是挂全局变量的普通脚本，这里用 eval 取出对象
-const SITE_DATA = eval(src + '\n;SITE_DATA');
+/**
+ * 与页面保持一致：优先读 data.json（/admin 后台写的就是它），读不到才回退 data.js。
+ * 否则你用后台改完文案，再跑这个脚本，看到的还是旧的 data.js，白忙一场。
+ */
+function loadSiteData() {
+  const jsonPath = path.join(ROOT, 'data.json');
+  if (fs.existsSync(jsonPath)) {
+    return { data: JSON.parse(fs.readFileSync(jsonPath, 'utf8')), from: 'data.json' };
+  }
+  return {
+    data: eval(fs.readFileSync(path.join(ROOT, 'data.js'), 'utf8') + '\n;SITE_DATA'),
+    from: 'data.js',
+  };
+}
+
+const loaded = loadSiteData();
+const SITE_DATA = loaded.data;
 
 const paras = SITE_DATA.about.paragraphs;
 const texts = paras.filter((p) => p.type === 'text');
 
-console.log('\n============ 文案预览 ============\n');
+console.log('\n============ 文案预览 ============');
+console.log('（数据来源: ' + loaded.from + '）\n');
 for (const p of paras) {
   if (p.type === 'heading') {
     console.log('\n■ ' + p.value + '\n');

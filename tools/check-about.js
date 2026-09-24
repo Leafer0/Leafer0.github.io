@@ -25,7 +25,24 @@ const userDataDir = path.join(os.tmpdir(), 'leafer-about-' + Date.now());
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // 预期值：直接从 data.js 里算出来
-const SITE_DATA = eval(fs.readFileSync(path.join(ROOT, 'data.js'), 'utf8') + '\n;SITE_DATA');
+/**
+ * 读取页面实际使用的数据源。
+ * 页面优先读 data.json（富文本后台 /admin 就是改它），读不到才回退 data.js。
+ * 所以这里也必须优先读 JSON，否则两边一旦不同步，校验就会给出错误结论。
+ */
+function loadSiteData() {
+  const jsonPath = path.join(ROOT, 'data.json');
+  if (fs.existsSync(jsonPath)) {
+    return { data: JSON.parse(fs.readFileSync(jsonPath, 'utf8')), from: 'data.json' };
+  }
+  return {
+    data: eval(fs.readFileSync(path.join(ROOT, 'data.js'), 'utf8') + '\n;SITE_DATA'),
+    from: 'data.js',
+  };
+}
+const loaded = loadSiteData();
+console.log('\n  预期数据来源: ' + loaded.from);
+const SITE_DATA = loaded.data;
 const paras = SITE_DATA.about.paragraphs;
 const expect = {
   headings: paras.filter((p) => p.type === 'heading').map((p) => p.value),

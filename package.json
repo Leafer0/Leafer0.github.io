@@ -9,11 +9,14 @@
     "build:img": "node tools/optimize-images.js",
     "build:icons": "node tools/build-icons.js",
     "build": "npm run build:css && npm run build:icons",
+    "migrate:json": "node tools/migrate-to-json.js",
+    "verify:cms": "node tools/verify-cms-config.js",
     "serve": "node tools/serve.js"
   },
   "devDependencies": {
     "@fortawesome/free-brands-svg-icons": "^6.7.2",
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
+    "js-yaml": "^4.1.0",
     "sharp": "^0.34.2",
     "tailwindcss": "^3.4.17"
   }

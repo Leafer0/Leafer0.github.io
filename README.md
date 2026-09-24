@@ -1,6 +1,7 @@
 # Leafer's Garden
 
-个人主页与随笔集，纯静态站点，部署在 GitHub Pages。
+个人主页与随笔集。站点本身仍是纯静态的，部署在 GitHub Pages；
+但内容可以通过 `/admin/` 网页后台来写 —— 后台负责 `git commit`，不需要服务器。
 
 ---
 
@@ -9,7 +10,8 @@
 ```
 .
 ├── index.html              # 页面结构 + Vue 应用逻辑（唯一的 HTML 入口）
-├── data.js                 # 【改内容只需要动这里】文案、图片、音乐、帖子
+├── data.json               # 【页面实际读取】站点全部内容（后台 /admin 写的就是它）
+├── data.js                 # 旧的数据源，现作为 data.json 读取失败时的回退
 ├── icons.js                # 内联 SVG 图标（由 tools/build-icons.js 生成）
 ├── site-theme.js           # 主题配置（由 tailwind.config.js 自动导出）
 ├── style.css               # 编译后的样式（由 src/input.css 生成，需提交）
@@ -17,11 +19,21 @@
 ├── package.json            # 构建脚本
 ├── .nojekyll               # 让 GitHub Pages 跳过 Jekyll 处理
 │
+├── admin/                  # 【网页写作后台】部署后访问 /admin/
+│   ├── index.html          # 后台页面（加载 Sveltia CMS）
+│   └── config.yml          # 后台字段定义（决定能编辑哪些内容）
+│
+├── .github/workflows/
+│   └── optimize-images.yml # 自动压缩后台上传的图片
+│
 ├── src/
 │   └── input.css           # 样式源码（Tailwind 指令 + 自定义组件/动画）
 │
 ├── tools/
-│   ├── optimize-images.js  # 图片压缩：原图 -> img/（WebP）
+│   ├── optimize-images.js  # 压缩仓库里的老图：assets/ -> img/（WebP）
+│   ├── optimize-uploads.js # 压缩后台上传的新图（原地处理，供 Action 调用）
+│   ├── migrate-to-json.js  # data.js -> data.json，带逐字段校验
+│   ├── verify-cms-config.js# 校验 config.yml 是否漏配字段（防止保存时丢数据）
 │   ├── build-icons.js      # 从 Font Awesome 包提取图标 path，并校验图标名
 │   ├── preview-about.js    # 终端里预览"关于我"文案 + 字数/句长/主语密度检查
 │   ├── serve.js            # 本地预览服务器（模拟 Linux 大小写敏感）
@@ -30,28 +42,47 @@
 │   ├── screenshot.js       # 全流程渲染检查：异常、404、溢出、体积、截图
 │   ├── check-theme.js      # 主题记忆逻辑的自动化断言
 │   ├── check-about.js      # 「关于我」段落是否全部正确渲染
+│   ├── check-admin.js      # `/admin` 后台能否加载、config.yml 能否解析
 │   ├── check-lazy.js       # 图片懒加载是否生效的检查
 │   └── diag.js             # DOM 诊断，排查资源加载问题
 │
-├── img/                    # 【页面实际引用】压缩后的 WebP 图片
+├── img/                    # 【页面实际引用】压缩后的 WebP 图片 + 后台上传的图片
 │   └── manifest.json       # 原图 -> 压缩图的映射清单
 │
 ├── assets/  me/            # 原始大图（完整保留，未删改）
 └── music/                  # 音频
 ```
 
+### 数据源的演变说明
+
+页面读取数据的顺序是：**先 `data.json`，失败则回退到 `data.js`**。
+
+* `data.json` —— 富文本后台的数据源，格式标准，Sveltia CMS 能可靠读写
+* `data.js` —— 原方案，带注释、单引号、尾逗号，后台无法可靠编辑
+
+想彻底退回旧方案，删掉 `data.json` 即可，页面会自动用 `data.js`，不会白屏。
+
 ### 两套图片目录的关系
 
 `img/` 是**页面真正加载**的压缩图，`assets/` 与 `me/` 是**原始大图**。
 
-这样安排是为了可回滚：想换回原图，把 `data.js` 里的 `img/xxx.webp` 改回
+这样安排是为了可回滚：想换回原图，把数据里的 `img/xxx.webp` 改回
 `assets/xxx` 即可，原始素材一张都没删。
 
 ---
 
 ## 二、日常怎么改内容
 
-**只改 `data.js` 就够了**，不需要碰 `index.html`。
+### 方式 A：用网页后台（推荐，手机上也能写）
+
+打开 `https://<你的域名>/admin/`，用 GitHub 访问令牌登录后即可写文章、传图片。
+**不需要服务器、不需要数据库、不需要备案。**
+
+完整说明见下文「四、网页写作后台」。
+
+### 方式 B：直接改文件
+
+**只改 `data.json` 就够了**，不需要碰 `index.html`。
 
 | 想做什么 | 改哪里 |
 | --- | --- |
@@ -108,6 +139,8 @@ npm install
 | `npm run watch:css` | 开发时监听改动自动重编译 |
 | `npm run build:img` | 把 `assets/`、`me/` 的原图压缩到 `img/` |
 | `npm run build:icons` | 重新生成 `icons.js` |
+| `npm run migrate:json` | 把 `data.js` 迁移成 `data.json`（带逐字段校验） |
+| `npm run verify:cms` | 校验 `admin/config.yml` 有没有漏配字段 |
 | `npm run serve` | 本地预览，打开 http://127.0.0.1:8899/ |
 
 改样式的工作流：
@@ -126,11 +159,97 @@ GitHub Pages 只托管静态文件，**不会在服务器上构建**。
 ```bash
 npm run build:css
 git add -A && git commit -m "更新" && git push
+node tools/wait-pages.js     # 等部署完成
 ```
 
 ---
 
-## 四、本次改进说明
+## 四、网页写作后台
+
+访问 `https://<你的域名>/admin/` 就能在网页上写文章、传图片。
+
+它的原理是 **Git-based CMS**：后台提供一个编辑界面，你点保存时它直接帮你
+`git commit` 到本仓库，GitHub Pages 随即自动重新发布。所以：
+
+* **不需要**买服务器、配数据库、装运行时
+* **不需要** ICP 备案（站点仍在 GitHub 上）
+* 你上传的图片会自动被 GitHub Action 压成 WebP，不用手动处理
+
+### 首次使用：登录
+
+目前配置的是**访问令牌**方式，适合"只有自己写文章"的场景，不用搭任何额外服务：
+
+1. 打开 https://github.com/settings/personal-access-tokens/new 创建一个
+   **Fine-grained token**
+   * Repository access：只勾选 `Leafer0.github.io`
+   * Permissions → Repository permissions → **Contents: Read and write**
+   * Expiration：按你的习惯选（过期后需重新生成）
+2. 打开 `/admin/`，点「使用访问令牌登录」，把令牌粘贴进去
+3. 令牌只保存在你当前浏览器里，不会上传到第三方
+
+> ⚠️ 令牌等于仓库写权限。别在公共电脑上登录，用完记得在 GitHub 上吊销。
+
+### 以后要让别人也能登录（可选）
+
+上面那种方式要求每个用户自己创建令牌，对不懂技术的人不友好。
+如果有人要和你一起写，再搭一个 OAuth 服务：
+
+1. 用 Cloudflare Workers 一键部署 [sveltia-cms-auth](https://github.com/sveltia/sveltia-cms-auth)
+   （免费额度足够个人使用）
+2. 在 GitHub 上注册 OAuth App，回调地址填 `<Worker地址>/callback`
+3. 给 Worker 配环境变量 `GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET`，
+   并设 `ALLOWED_DOMAINS=leafer0.github.io`（防盗用）
+4. 在 `admin/config.yml` 的 `backend` 下取消注释 `base_url`，填入 Worker 地址
+
+### 改了后台字段定义之后
+
+`admin/config.yml` 定义后台能编辑哪些字段。
+**配置里没声明的字段，在后台保存时会被丢掉**（例如忘了配 `navItems`，导航就没了）。
+所以每次改完配置都要跑：
+
+```bash
+npm run verify:cms
+```
+
+它会拿 `data.json` 和 `config.yml` 逐字段比对，漏了会明确告诉你漏了哪个。
+
+---
+
+## 五、想换成真正的服务器该怎么办
+
+先用一句话判断你到底需不需要服务器：
+
+> **需要「能存数据的地方」≠ 需要「一台服务器」。**
+> 写文章、传图片这类需求，Git 仓库就是那个地方（见上一节）。
+> 只有当你要跑数据库、多用户协作、或国内免备案直连时，才真的需要买服务器。
+
+三条路线的对比：
+
+| | A. 静态站 + Git 后台 | B. Serverless 函数 + 数据库 | C. 买 VPS 自己搭 |
+| --- | --- | --- | --- |
+| **能做什么** | 写文章、传图片 | 上面全部，外加评论、点赞、访问统计 | 全部，且完全自主 |
+| **额外成本** | 0 | 0（免费额度内） | 约 ¥30~100/月 |
+| **是否需要备案** | 不需要 | 不需要（服务在境外） | **境内服务器必须备案** |
+| **你要维护什么** | 几乎不用管 | 偶尔看下额度 | 系统更新、备份、证书、防火墙 |
+| **国内访问速度** | 时快时慢 | 看服务商 | 境内快 / 境外一般 |
+
+**你现在在哪一步**：可以用 A 解决写作需求。等真的需要评论功能了，
+再加 B（评论可以用 Waline、Twikoo 这类，专门给静态博客做后端，仍然免费）。
+
+**什么时候才该走 C**：你想学服务器运维、要放自己的后端项目、
+或者国内访客的速度已经严重影响体验。到那时的最短路径是：
+
+1. 买一台 VPS（国内厂商需先完成 ICP 备案；香港/海外则免备案但速度一般）
+2. 装 Nginx 托管静态文件，把域名解析过去，用 certbot 配免费 HTTPS
+3. 需要数据库就装 MySQL/PostgreSQL，再跑你自己的后端服务
+4. 用 `rsync` 或 GitHub Actions 做自动部署
+
+> 建议先把 A 跑顺。A 和 C 并不冲突 —— 将来买了服务器，
+> 现在这套 `data.json` + 构建脚本可以整套搬过去，不用重写。
+
+---
+
+## 六、本次改进说明
 
 ### 1. 修掉的线上 Bug
 
@@ -183,7 +302,7 @@ git add -A && git commit -m "更新" && git push
 
 ---
 
-## 五、质量校验
+## 七、质量校验
 
 改动后做过的自动化验证（均为无头浏览器真实渲染，非静态检查）：
 
@@ -216,15 +335,23 @@ node tools/wait-pages.js             # 推送后等 Pages 部署完（默认最�
 
 ---
 
-## 六、可调参数速查
+## 八、可调参数速查
 
 如果觉得某些取舍不合适，可以按下面调：
 
 | 想调整 | 位置 | 说明 |
 | --- | --- | --- |
-| 背景切换速度 | `data.js` → `backgroundInterval` | 当前 8000ms |
+| 背景切换速度 | `data.json` → `backgroundInterval` | 当前 8000ms |
 | 背景图压缩质量 | `tools/optimize-images.js` → `RULES.bg` | 当前 2560 宽 / q80；调大更清晰、体积也更大 |
 | 正文配图清晰度 | `tools/optimize-images.js` → `RULES.article` | 当前 1280 宽 / q72。若你希望灯箱里能看得更"满"，可调回 `width: 1600, quality: 80`，代价是首屏体积上升 |
+| 后台上传图片的压缩规格 | `tools/optimize-uploads.js` → `presetFor()` | 默认 1600 宽 / q78，按文件名区分背景图与头像 |
 | 配色 / 字体 | `tailwind.config.js` → `theme.extend` | 改完要跑 `npm run build:css` |
 | 卡片悬停缩放幅度 | `src/input.css` → `.photo-card:hover` | 当前 `scale(1.04)` |
 | 加回鼠标粒子特效 | 已移除，见 `index.html` 里 `onMounted` 的注释 | 建议不要加回，它对低端机很不友好 |
+
+### 可选改进
+
+`admin/config.yml` 支持引用官方 JSON Schema，这样在编辑器里改配置时
+能直接提示拼写错误（当前**未**启用，因为要填一个我无法替你核实的在线地址）。
+想要的话可以查看 [Sveltia CMS 配置文档](https://sveltiacms.app/en/docs/config-basics)
+确认地址后，在 `config.yml` 首行加一行 `# yaml-language-server: $schema=<地址>`。

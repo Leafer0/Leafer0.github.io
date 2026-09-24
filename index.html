@@ -573,13 +573,49 @@
       + '<p style="color:#888">Vue 运行时没能从 CDN 加载。请检查网络后刷新，或联系站主。</p></div>';
     return;
   }
-  if (typeof SITE_DATA === 'undefined' || typeof icon === 'undefined') {
-    boot.innerHTML = '<div style="padding:3rem;text-align:center;font-family:system-ui,sans-serif">'
-      + '<h1 style="font-size:1.25rem;font-weight:700">站点数据读取失败</h1>'
-      + '<p style="color:#888">data.js 或 icons.js 没有正确加载。</p></div>';
-    return;
+  // 数据的可用性在下面 loadSiteData() 里统一检查（可能来自 data.json 或 data.js）
+
+  /**
+   * 读取站点数据。
+   *
+   * 之所以改成「优先 fetch JSON」：
+   *   data.json 是富文本后台（/admin）读写的数据源，后台写文章就是改这个文件。
+   *   但 fetch 在 file:// 协议下会被浏览器拦截，也依赖服务器返回正确 MIME 类型，
+   *   所以保留 data.js 作为回退 —— 万一 JSON 取不到，页面照旧能打开，
+   *   而不是整站白屏。想彻底回退到旧方案：删掉 data.json 即可。
+   */
+  async function loadSiteData() {
+    try {
+      const res = await fetch('data.json', { cache: 'no-cache' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      if (!data || typeof data !== 'object') throw new Error('内容不是对象');
+      return data;
+    } catch (err) {
+      if (typeof SITE_DATA !== 'undefined') {
+        console.warn('data.json 读取失败，已回退到 data.js：', err.message);
+        return SITE_DATA;
+      }
+      throw err;
+    }
   }
 
+  loadSiteData()
+    .then(function (data) {
+      if (typeof icon === 'undefined') {
+        throw new Error('icons.js 没有正确加载');
+      }
+      mountApp(data);
+    })
+    .catch(function (err) {
+      console.error('站点数据读取失败:', err);
+      boot.innerHTML = '<div style="padding:3rem;text-align:center;font-family:system-ui,sans-serif;line-height:2">'
+        + '<h1 style="font-size:1.25rem;font-weight:700">站点数据读取失败</h1>'
+        + '<p style="color:#888">没能加载 data.json 或 data.js。</p>'
+        + '<p style="color:#aaa;font-size:.8rem">' + String(err.message || err) + '</p></div>';
+    });
+
+  function mountApp(SITE_DATA) {
   var createApp = Vue.createApp;
   var ref = Vue.ref;
   var computed = Vue.computed;
@@ -940,6 +976,7 @@
       };
     }
   }).mount('#app');
+  }
 })();
 </script>
 </body>
