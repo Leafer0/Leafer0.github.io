@@ -285,9 +285,25 @@ node tools/diag-comments.js       # 出问题时逐步定位卡在哪一步
 
 ---
 
-## 六、部署到 Vercel（当前方案）
+## 六、部署与域名（当前方案）
 
 主站和评论服务都放在 Vercel，这样国内访客不必翻墙也能打开（GitHub Pages 在国内时快时慢）。
+
+### 线上地址现状
+
+| 地址 | 用途 | 说明 |
+| --- | --- | --- |
+| **`https://www.leafer114514.xyz`** | **主站正式地址** | Vercel 上 `www` 被设为主域名 |
+| `https://leafer114514.xyz` | 主站 | 308 跳转到 `www` |
+| `https://waline.leafer114514.xyz` | 评论服务 | Waline 服务端 |
+| `https://leafer0.github.io` | 备用 | GitHub Pages 仍在部署，可作后备 |
+
+> **为什么正式地址是 `www` 而不是裸域**：Vercel 绑定裸域时会自动把 `www` 设为主域名，
+> 于是裸域 308 跳到 `www`。两者都能打开站点，想改成裸域为主，
+> 在项目 Settings → Domains 里调整 Primary 即可。
+>
+> 排查时注意：**直接请求裸域的任意路径都会返回 308**，这不是资源 404，
+> 跟随跳转后才是真实状态。验证脚本要以 `www` 为准。
 
 ### 为什么主站也搬到 Vercel
 
@@ -312,7 +328,18 @@ node tools/diag-comments.js       # 出问题时逐步定位卡在哪一步
 ```bash
 node tools/verify-vercel-config.js    # 检查 vercel.json 是否会被 Vercel 拒绝
 node tools/verify-vercelignore.js     # 检查有没有误伤线上必需的文件
+
+# 换域名/改绑定后，验证线上是否真的正常（PowerShell 脚本）
+powershell -File tools/check-domain.ps1
 ```
+
+> `tools/check-domain.ps1` 用 PowerShell 而不是 Node 写，是被现实教训过：
+> 起初用 Node 的 fetch 实现，结果本机对 Vercel 的请求全部 `ECONNRESET`
+> （同一时刻 PowerShell 能正常拿到 200），脚本据此报了十几条"失败"，结论完全错误。
+> **当大量检查同时失败、而对照组却正常时，先怀疑工具或网络，而不是站点。**
+>
+> 另外这个 `.ps1` 文件带 UTF-8 BOM。Windows PowerShell 5.1 默认按 GBK 读取脚本，
+> 中文会被解成乱码并破坏字符串边界。若用编辑器重新保存后运行报语法错误，检查 BOM 是否还在。
 
 > `vercel.json` 对未知键是**直接拒绝**的。曾经因为习惯性加了个 `comment` 字段做说明，
 > 就被 schema 判为非法 —— 而这种错误只在部署时才暴露，所以需要本地校验。
