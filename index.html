@@ -688,8 +688,9 @@
       /* ---------------- 评论（Waline） ---------------- */
       // 配置放在 data.json 的 comments 里，后台可改。
       // serverURL 为空时整站不显示评论区 —— 这样在服务搭好之前不会有半个空框子露在外面。
+      // 用 ref 而不是普通变量：探测到服务不可达时要能动态关掉评论区，模板才会响应。
       var commentsCfg = D.comments || {};
-      var commentsReady = !!commentsCfg.serverURL;
+      var commentsReady = ref(!!commentsCfg.serverURL);
 
       var commentInstances = {};   // 文章序号 -> Waline 实例，用于销毁
       var commentCounts = ref({});  // 文章序号 -> 评论数（从渲染结果里读）
@@ -911,7 +912,7 @@
            实测会无限循环并把主线程卡死
       -------------------------------------------------- */
       var commentHostKey = computed(function () {
-        if (!commentsReady) return '';
+        if (!commentsReady.value) return '';
         var i = expandedIndex.value;
         return (currentPage.value === 'thoughts' && i !== null) ? 'thoughts:' + i : '';
       });
@@ -957,6 +958,36 @@
       }
 
       /**
+       * 先探一下评论服务是否真的可达，再决定要不要挂载。
+       *
+       * 为什么需要这一步：
+       *   如果配的域名在国内被墙（本站真实踩过这个坑），
+       *   Waline 会在那里长时间转圈，读者只看到一片空白，
+       *   分不清是"没有评论"还是"加载失败"。
+       *   这里用一次 1.5 秒超时的轻量请求先探路：
+       *   连不通就干脆不显示评论区，而不是留一个坏掉的框子。
+       *   探测失败只影响评论，页面其余部分完全不受影响。
+       */
+      function probeCommentServer() {
+        var url = String(commentsCfg.serverURL || '').replace(/\/$/, '')
+          + '/api/comment?path=' + encodeURIComponent('/thoughts/0');
+        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timer = window.setTimeout(function () { if (ctrl) ctrl.abort(); }, 1500);
+        return fetch(url, {
+          method: 'GET',
+          mode: 'cors',
+          cache: 'no-store',
+          signal: ctrl ? ctrl.signal : undefined
+        }).then(function (res) {
+          window.clearTimeout(timer);
+          return res.ok;
+        }).catch(function () {
+          window.clearTimeout(timer);
+          return false;
+        });
+      }
+
+      /**
        * 初始化某篇文章的评论区。
        *
        * path 用 '/thoughts/<序号>' 而不是 location.pathname ——
@@ -965,45 +996,54 @@
        */
       function initWaline(index) {
         var el = document.getElementById(commentsElId(index));
-        if (!el || !commentsReady) return;
+        if (!el || !commentsReady.value) return;
         setCommentState(index, 'loading');
 
-        ensureWaline().then(function () {
-          // 异步返回时用户可能已经收起文章或切走，必须重新确认容器还在
-          if (!el.isConnected) return;
-          teardownComments();
-          try {
-            commentInstances[index] = window.Waline.init({
-              el: el,
-              serverURL: commentsCfg.serverURL,
-              path: '/thoughts/' + index,
-              lang: commentsCfg.lang || 'zh-CN',
-              pageSize: commentsCfg.pageSize || 10,
-              login: commentsCfg.login || 'enable',
-              requiredMeta: commentsCfg.requiredMeta || [],
-              meta: commentsCfg.meta || ['nick', 'mail', 'link'],
-              commentSorting: commentsCfg.commentSorting || 'latest',
-              pageview: false,
-              reaction: false,
-              // 表情包在 unpkg 上，国内可能慢；配置为空数组则不显示表情
-              emoji: (commentsCfg.emojiPresets && commentsCfg.emojiPresets.length)
-                ? commentsCfg.emojiPresets
-                : false,
-              // 本站用 html.dark 切换暗色，Waline 会在该选择器生效时自动换配色
-              dark: 'html.dark',
-              // 用不到的功能关掉，少加载一些资源
-              search: false,
-              imageUploader: false
-            });
-            setCommentState(index, 'ready');
-            // 等 Waline 把评论列表渲染出来后再读条数
-            window.setTimeout(function () { readCommentCount(index); }, 1200);
-          } catch (err) {
-            console.error('评论初始化失败:', err);
-            setCommentState(index, 'error');
+        probeCommentServer().then(function (reachable) {
+          if (!reachable) {
+            // 服务连不通：隐藏整块评论区，不给读者留下一个坏掉的界面
+            console.warn('评论服务不可达，已隐藏评论区：' + commentsCfg.serverURL);
+            commentsReady.value = false;
+            setCommentState(index, null);
+            return;
           }
+          return ensureWaline().then(function () {
+            // 异步返回时用户可能已经收起文章或切走，必须重新确认容器还在
+            if (!el.isConnected) return;
+            teardownComments();
+            try {
+              commentInstances[index] = window.Waline.init({
+                el: el,
+                serverURL: commentsCfg.serverURL,
+                path: '/thoughts/' + index,
+                lang: commentsCfg.lang || 'zh-CN',
+                pageSize: commentsCfg.pageSize || 10,
+                login: commentsCfg.login || 'enable',
+                requiredMeta: commentsCfg.requiredMeta || [],
+                meta: commentsCfg.meta || ['nick', 'mail', 'link'],
+                commentSorting: commentsCfg.commentSorting || 'latest',
+                pageview: false,
+                reaction: false,
+                // 表情包在 unpkg 上，国内可能慢；配置为空数组则不显示表情
+                emoji: (commentsCfg.emojiPresets && commentsCfg.emojiPresets.length)
+                  ? commentsCfg.emojiPresets
+                  : false,
+                // 本站用 html.dark 切换暗色，Waline 会在该选择器生效时自动换配色
+                dark: 'html.dark',
+                // 用不到的功能关掉，少加载一些资源
+                search: false,
+                imageUploader: false
+              });
+              setCommentState(index, 'ready');
+              // 等 Waline 把评论列表渲染出来后再读条数
+              window.setTimeout(function () { readCommentCount(index); }, 1200);
+            } catch (err) {
+              console.error('评论初始化失败:', err);
+              setCommentState(index, 'error');
+            }
+          });
         }).catch(function (err) {
-          console.error(err);
+          console.error('评论初始化异常:', err);
           setCommentState(index, 'error');
         });
       }

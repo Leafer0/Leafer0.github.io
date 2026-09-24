@@ -47,6 +47,8 @@
 │   ├── check-about.js      # 「关于我」段落是否全部正确渲染
 │   ├── check-admin.js      # `/admin` 后台能否加载、config.yml 能否解析
 │   ├── check-comments.js   # 评论区：渲染、按文章隔离、暗色、服务端连通性
+│   ├── check-comments-fallback.js # 评论服务不可达时能否安静隐藏
+│   ├── check-domain.ps1    # 换域名/改绑定后验证线上是否真的正常
 │   ├── check-lazy.js       # 图片懒加载是否生效的检查
 │   ├── verify-vercel-config.js   # 校验 vercel.json（未知键会导致部署被拒）
 │   ├── verify-vercelignore.js    # 校验 .vercelignore 是否误伤线上必需文件
@@ -267,56 +269,143 @@ npm run verify:cms
   这些海外 CDN 全部清掉了，不该在这里又引一个回来。自己托管后，
   评论区的可用性只取决于你自己的 Waline 服务。
 
-### ⚠️ 国内访问的重要限制
+### ⚠️ 国内访问的现状（已实测结论）
 
-Waline 部署在 Vercel 后拿到的 `xxx.vercel.app` 域名**在国内是被墙的**。
-这意味着国内访客可能加载不出评论区（页面其他部分不受影响）。
+这一段最初写的是"绑定自有域名即可解决"，**这个判断后来被实践推翻了**，记录如下：
 
-要解决必须**绑定一个自己的域名**（在 Vercel 项目里加 Domain，
-再到域名服务商加一条 CNAME 指向 `cname.vercel-dns.com`）。
-没有自有域名的话，这条路走不通 —— 除非把 Waline 迁到国内云厂商，但那需要备案。
+- `xxx.vercel.app` 域名在国内被墙 —— 这一点成立
+- 但"绑定自有域名就能访问"**不成立**：换用 `leafer114514.xyz` 后，
+  用户电脑与手机流量**都**无法访问（`ERR_CONNECTION_RESET`），
+  而同一台机器上 `vercel.com` 却通 —— 说明被拦的是**域名**，不是 Vercel
+- 详见第六节「教训」一节
+
+**结论：接入评论服务前，必须先实测目标域名在你的目标网络里能否访问。**
+
+```powershell
+# 换域名前先跑这个
+curl.exe -sS -o NUL -w "HTTP %{http_code}  %{time_total}s`n" --max-time 15 https://待测域名/api/comment?path=/thoughts/0
+```
+
+现在 `comments.serverURL` 留空，评论区整块不显示。
+客户端已做容错：**服务不可达时会自动隐藏评论区**，不会留下转圈的空框子。
 
 ### 验证
 
 ```bash
-node tools/check-comments.js      # 渲染、按文章隔离、暗色、服务端连通性
-node tools/diag-comments.js       # 出问题时逐步定位卡在哪一步
+node tools/check-comments.js           # 渲染、按文章隔离、暗色、服务端连通性
+node tools/check-comments-fallback.js  # 服务不可达时能否安静隐藏（重要降级行为）
+node tools/diag-comments.js            # 出问题时逐步定位卡在哪一步
 ```
 
 ---
 
 ## 六、部署与域名（当前方案）
 
-主站和评论服务都放在 Vercel，这样国内访客不必翻墙也能打开（GitHub Pages 在国内时快时慢）。
+**当前状态：主站用 GitHub Pages，评论服务暂时关闭。**
 
 ### 线上地址现状
 
-| 地址 | 用途 | 说明 |
+| 地址 | 用途 | 状态 |
 | --- | --- | --- |
-| **`https://www.leafer114514.xyz`** | **主站正式地址** | Vercel 上 `www` 被设为主域名 |
-| `https://leafer114514.xyz` | 主站 | 308 跳转到 `www` |
-| `https://waline.leafer114514.xyz` | 评论服务 | Waline 服务端 |
-| `https://leafer0.github.io` | 备用 | GitHub Pages 仍在部署，可作后备 |
+| **`https://leafer0.github.io`** | **主站正式地址** | ✅ 可用（实测 200 / 0.9s） |
+| `https://leafer114514.xyz` | 已废弃 | ❌ 国内被拦（见下） |
+| `https://waline.leafer114514.xyz` | 已废弃 | ❌ 国内被拦 |
+| Vercel 上的部署 | 仍在运行 | 仅境外可访问，暂不对外使用 |
 
-> **为什么正式地址是 `www` 而不是裸域**：Vercel 绑定裸域时会自动把 `www` 设为主域名，
-> 于是裸域 308 跳到 `www`。两者都能打开站点，想改成裸域为主，
-> 在项目 Settings → Domains 里调整 Primary 即可。
->
-> 排查时注意：**直接请求裸域的任意路径都会返回 308**，这不是资源 404，
-> 跟随跳转后才是真实状态。验证脚本要以 `www` 为准。
+站点在 GitHub Pages 和（曾配置的）Vercel 上都部署同一个仓库，内容始终一致。
+即使 Vercel 那边不可达，GitHub Pages 上的内容也是最新的。
 
-### 为什么主站也搬到 Vercel
+### ⚠️ 教训：`leafer114514.xyz` 在国内被拦，方案因此失败
 
-`leafer-pi.vercel.app` 这类 `*.vercel.app` 域名在国内是**被墙的**。
-但只要绑定自己的域名，Vercel 上的站点在国内就是可访问的。
-所以主站和评论服务都挂到自有域名下，两者一起解决了访问问题。
+这是一次**代价明确、本可避免**的失败，记录在此以免重蹈：
 
-### 项目侧的配置（已完成，不需要你动手）
+**做过什么**
+
+为了让国内访客不必翻墙，把主站和评论服务都迁到 Vercel，并绑定了自有域名
+`leafer114514.xyz`。当时的前提假设是"`*.vercel.app` 在国内被墙，
+但绑定自有域名后就可访问"。
+
+**实际结果**
+
+| 测试环境 | `leafer114514.xyz` | `leafer0.github.io` |
+| --- | --- | --- |
+| 用户电脑（有线宽带） | TLS 连接被重置 | 200 / 0.9s |
+| 用户手机（移动流量） | `ERR_CONNECTION_RESET` | 正常 |
+| 子域 `www` / `waline` | `NXDOMAIN`（两种网络均如此） | — |
+
+换设备、换运营商、绕开本机缓存，结果一致 → **不是本机问题，是域名被拦**。
+
+**反证：Vercel 整体没被拦**
+
+同一台机器上 `vercel.com` 能正常访问（200，虽慢），
+而只有 `leafer114514.xyz` 在 0.09 秒内被重置 →
+拦截是按**域名**匹配的，不是按 IP 或服务商。
+
+推测原因：域名里的 `114514` 是国内网络上的知名梗，
+部分省份的运营商/安全设备会判定为不良内容直接拦截。
+**若属实，换 DNS、换解析商、加 CDN 都无法绕过** —— 因为拦的是域名本身。
+
+**核心错误：没有先验证可达性就迁移**
+
+正确的顺序应当是：
+
+1. **先**用一条 curl 实测目标服务在你的目标网络里能否访问
+2. 确认能访问后，再投入时间做迁移和域名绑定
+3. 迁移期间保留原方案不动，作为回退路径
+
+我当时直接按"一般情况成立"的结论推进，没让学生先跑一条命令验证，
+结果是**把能用的配置换成了不能用的**。
+
+```powershell
+# 迁移前应该先跑这个（换成待测目标）
+curl.exe -sS -o NUL -w "HTTP %{http_code}  %{time_total}s`n" --max-time 15 https://待测地址/
+```
+
+**其他教训**
+
+- 别在用户无法控制的环节上做假设（换 DNS、备案、退款都属于此类）
+- 验证工具自身会骗人：本机 Node 对 Vercel 全部 `ECONNRESET`，
+  而同一时刻 PowerShell 能拿到 200 —— 那是链路问题，不是站点问题。
+  **大量检查同时失败而对照组正常时，先怀疑工具或网络。**
+- 拿不准时的兜底策略是"保留已验证可用的那条路"，而不是追求理论最优
+
+### 换新域名后怎么接回来
+
+1. **先验证域名可用**，再动任何配置：
+
+   ```powershell
+   curl.exe -sS -o NUL -w "HTTP %{http_code}  %{time_total}s`n" --max-time 15 https://新域名/
+   ```
+
+   手机流量也要试一次 —— 域名被拦往往只在特定网络下暴露。
+
+2. 主站绑域名（可选）：Vercel DNS 里把 A 记录指向 GitHub Pages 的
+   `185.199.108~111.153`，然后在仓库 Settings → Pages 填自定义域名。
+   > 顺序不能反：**先在 GitHub 里填域名，再改 DNS**，
+   > 否则别人可以抢先把域名绑到他自己的 GitHub Pages 上。
+
+3. 评论服务：把 Waline 项目绑到新域名的一个子域，
+   然后填 `data.json` 的 `comments.serverURL`。
+
+   > 客户端已经能容错：服务不可达时**整块评论区会自动隐藏**，
+   > 不会给读者留下一个转圈的空框子。验证脚本：
+   > `node tools/check-comments-fallback.js`
+
+### 为什么评论服务地址现在是空的
+
+`comments.serverURL` 留空 → 整站不显示评论区。
+这是刻意的：域名被拦后留着它只会让读者看到一个坏掉的框子。
+等有了可用的域名，填上地址即可恢复。
+
+### 项目侧的 Vercel 配置（保留，未删除）
 
 | 文件 | 作用 |
 | --- | --- |
 | `vercel.json` | 缓存策略：图片/音频/vendor 长期缓存，`data.json` 和 HTML 每次校验 |
 | `.vercelignore` | 排除不上传的文件，把上传量从 122MB 降到 25MB |
+
+这两个文件保持现状。若将来国内可达性改善（或换到可用的域名），
+可以重新启用 Vercel 部署，配置已经就绪。
 
 **关于 `.vercelignore`**：`assets/`（85MB）和 `me/`（12MB）是**原始大图的备份**，
 页面从不请求它们（实际只用 `img/`、`music/`、`vendor/`）。
@@ -328,47 +417,11 @@ node tools/diag-comments.js       # 出问题时逐步定位卡在哪一步
 ```bash
 node tools/verify-vercel-config.js    # 检查 vercel.json 是否会被 Vercel 拒绝
 node tools/verify-vercelignore.js     # 检查有没有误伤线上必需的文件
-
-# 换域名/改绑定后，验证线上是否真的正常（PowerShell 脚本）
-powershell -File tools/check-domain.ps1
+node tools/check-domain.ps1           # 验证线上实际地址是否正常
 ```
-
-> `tools/check-domain.ps1` 用 PowerShell 而不是 Node 写，是被现实教训过：
-> 起初用 Node 的 fetch 实现，结果本机对 Vercel 的请求全部 `ECONNRESET`
-> （同一时刻 PowerShell 能正常拿到 200），脚本据此报了十几条"失败"，结论完全错误。
-> **当大量检查同时失败、而对照组却正常时，先怀疑工具或网络，而不是站点。**
->
-> 另外这个 `.ps1` 文件带 UTF-8 BOM。Windows PowerShell 5.1 默认按 GBK 读取脚本，
-> 中文会被解成乱码并破坏字符串边界。若用编辑器重新保存后运行报语法错误，检查 BOM 是否还在。
 
 > `vercel.json` 对未知键是**直接拒绝**的。曾经因为习惯性加了个 `comment` 字段做说明，
 > 就被 schema 判为非法 —— 而这种错误只在部署时才暴露，所以需要本地校验。
-
-### 在 Vercel 上要做的三步
-
-1. **导入仓库**：Vercel → Add New → Project → 选择 `Leafer0/Leafer0.github.io`
-   * Framework Preset 选 **Other**
-   * Build Command / Output Directory **都留空**（本站是纯静态，产物已提交）
-2. **绑定域名**（项目 Settings → Domains）：
-   * `leafer114514.xyz` → 主站
-   * `waline.leafer114514.xyz` → 评论服务（同一个项目也可以，Waline 是独立项目则加在那边）
-3. **等证书签发**：Vercel 会自动申请 HTTPS 证书，生效前访问会报连接错误，属正常
-
-### DNS 记录（域名已委派给 Vercel DNS，记录加在 Vercel 面板）
-
-| 类型 | 名称 | 值 |
-| --- | --- | --- |
-| A | `@` | Vercel 项目域名页给出的值 |
-| CNAME | `waline` | Vercel 项目域名页给出的值 |
-
-> 记录值请**以 Vercel 项目面板显示的为准**，不要照抄别处的示例。
-> 如果域名委派给 Vercel DNS，通常无需手动添加 —— 在项目里认领域名后会自动写入。
-
-### 与 GitHub Pages 的关系
-
-搬到 Vercel 后，`leafer0.github.io` 仍然可用（作为备用），
-但正式地址是自有域名。GitHub Pages 的部署流程不受影响，
-所以两套都活着 —— 万一 Vercel 出问题，旧地址还能访问。
 
 ---
 
