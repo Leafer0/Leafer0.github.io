@@ -186,17 +186,38 @@ async function shot(cdp, name, fullPage) {
   const payload = await evaluate(cdp, `(() => {
     const origin = location.origin;
     const rows = performance.getEntriesByType('resource')
-      .filter(r => r.name.startsWith(origin) && r.transferSize > 0)
-      .map(r => ({ url: r.name.replace(origin + '/', ''), kb: Math.round(r.transferSize / 1024) }));
+      // 注意：缓存命中的资源 transferSize 会是 0，
+      // 因此这里用 decodedBodySize 兜底，否则二次访问时会统计不到任何资源
+      .filter(r => r.name.startsWith(origin) && (r.transferSize > 0 || r.decodedBodySize > 0))
+      .map(r => {
+        const decoded = Math.round((r.decodedBodySize || 0) / 1024);
+        const cached = r.transferSize === 0;
+        return {
+          url: r.name.replace(origin + '/', ''),
+          // transferSize 是压缩后的真实传输量（GitHub Pages 会开 gzip/brotli）
+          kb: cached ? decoded : Math.round(r.transferSize / 1024),
+          decoded,
+          cached
+        };
+      });
     const total = rows.reduce((s, r) => s + r.kb, 0);
+    const decodedTotal = rows.reduce((s, r) => s + r.decoded, 0);
     rows.sort((a, b) => b.kb - a.kb);
-    return { total, rows };
+    return {
+      total, decodedTotal, rows,
+      cachedCount: rows.filter(r => r.cached).length
+    };
   })()`);
 
   console.log('\n  ── 首屏本站资源体积 ──');
-  console.log('  合计: ' + (payload.total / 1024).toFixed(2) + ' MB   （' + payload.rows.length + ' 个请求）');
-  payload.rows.slice(0, 10).forEach((r) =>
-    console.log('     ' + String(r.kb).padStart(6) + ' KB  ' + r.url));
+  console.log('  实测传输: ' + (payload.total / 1024).toFixed(2) + ' MB'
+    + '    解码后: ' + (payload.decodedTotal / 1024).toFixed(2) + ' MB'
+    + '    （' + payload.rows.length + ' 个请求，其中 '
+    + payload.cachedCount + ' 个命中缓存）');
+  payload.rows.slice(0, 12).forEach((r) =>
+    console.log('     ' + String(r.kb).padStart(6) + ' KB  '
+      + (r.decoded && r.decoded !== r.kb ? '(' + r.decoded + ' KB 解码后) ' : '')
+      + r.url));
 
 
   const health = await evaluate(cdp, `(() => {
