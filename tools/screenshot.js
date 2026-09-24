@@ -220,6 +220,14 @@ async function shot(cdp, name, fullPage) {
       + r.url));
 
 
+  // 检查图片前先滚一遍页面，触发懒加载。
+  // 页面用 loading="lazy"，视口外的图本来就不会下载，
+  // 不滚动就统计会把"还没轮到加载"误报成"加载失败"（曾误报 3 张）。
+  await evaluate(cdp, `window.scrollTo(0, document.body.scrollHeight); true`);
+  await sleep(3500);
+  await evaluate(cdp, `window.scrollTo(0, 0); true`);
+  await sleep(600);
+
   const health = await evaluate(cdp, `(() => {
     const vueMounted = !!document.querySelector('#app').__vue_app__ ||
                        !!document.querySelector('nav[aria-label="主导航"] button');

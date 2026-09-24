@@ -1,0 +1,7 @@
+来源: https://unpkg.com/@waline/client@3.15.2/dist/
+版本: 3.15.2
+下载方式: node tools/build-waline.js
+
+这是第三方构建产物，不要手动修改。
+升级步骤: 改 tools/build-waline.js 里的 VERSION -> 重跑脚本 -> 提交 vendor/ 的变化
+许可证: GPL-2.0 (Waline)

@@ -123,6 +123,50 @@ collections:
                 widget: select
                 options: ['text-emerald-500', 'text-blue-400', 'text-yellow-400']
 
+          - label: 评论系统（Waline）
+            name: comments
+            widget: object
+            hint: serverURL 留空则整站不显示评论区
+            fields:
+              - label: 服务地址
+                name: serverURL
+                widget: string
+                required: false
+                hint: 你的 Waline 服务地址，例如 https://waline.你的域名.com（末尾不要带斜杠）
+              - label: 界面语言
+                name: lang
+                widget: select
+                required: false
+                options: ['zh-CN', 'zh-TW', 'en-US', 'jp-JP']
+              - { label: 每页评论数, name: pageSize, widget: number, value_type: int, required: false }
+              - label: 登录模式
+                name: login
+                widget: select
+                required: false
+                options: ['enable', 'disable', 'force']
+                hint: enable=可登录也可匿名；disable=只能匿名；force=必须登录
+              - label: 必填项
+                name: requiredMeta
+                widget: list
+                required: false
+                field: { label: 字段, name: field, widget: select, options: [nick, mail, link] }
+              - label: 显示项
+                name: meta
+                widget: list
+                required: false
+                field: { label: 字段, name: field, widget: select, options: [nick, mail, link] }
+              - label: 表情包来源
+                name: emojiPresets
+                widget: list
+                required: false
+                hint: 留空则不显示表情。这些地址在 unpkg 上，国内可能加载慢
+                field: { label: 地址, name: url, widget: string }
+              - label: 排序方式
+                name: commentSorting
+                widget: select
+                required: false
+                options: [latest, oldest, hottest]
+
           - label: 随机语录
             name: quotes
             widget: list

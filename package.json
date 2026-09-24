@@ -11,6 +11,7 @@
     "build": "npm run build:css && npm run build:icons",
     "migrate:json": "node tools/migrate-to-json.js",
     "verify:cms": "node tools/verify-cms-config.js",
+    "build:waline": "node tools/build-waline.js",
     "serve": "node tools/serve.js"
   },
   "devDependencies": {

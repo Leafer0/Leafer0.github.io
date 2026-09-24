@@ -77,6 +77,14 @@
 <link rel="stylesheet" href="style.css">
 
 <!--
+  评论区样式（Waline）。自己托管在 vendor/waline/，不走 unpkg CDN ——
+  本站前面刚把所有海外 CDN 清掉以减少国内访问的故障点，不该在这里又引回来。
+  这两个 CSS 加起来 36KB，且只在帖子页用得到，代价可接受。
+-->
+<link rel="stylesheet" href="vendor/waline/waline.css">
+<link rel="stylesheet" href="vendor/waline/waline-meta.css">
+
+<!--
   统计脚本。原来它们放在 </body> 后且 gtag 是渲染阻塞的，
   这里统一改为 async，并且 busuanzi 加载失败时会自动降级显示 "—"。
 -->
@@ -397,6 +405,37 @@
                          class="w-full h-64 object-cover transition-transform duration-700 group-hover/img:scale-105">
                   </button>
                 </div>
+
+                <!-- ==========================================================
+                     评论区
+                     设计说明：
+                     1. 只在已配置 serverURL 时出现（否则整站不显示，避免露出空框子）
+                     2. 容器只用稳定 id，**不用** Vue 的函数式 :ref ——
+                        函数式 ref 每次渲染都是新函数，Vue 会先以 null 调用再传元素，
+                        等于每次渲染都销毁重建一遍 Waline，实测会引发无限渲染循环把主线程卡死。
+                        实例的创建与销毁改由 watch(commentHostKey) 统一管理。
+                     3. 评论按文章区分，靠 Waline 的 path 参数（见 initWaline）
+                     ========================================================== -->
+                <section v-if="commentsReady"
+                         class="mt-10 pt-8 border-t border-gray-200/70 dark:border-gray-800">
+                  <h3 class="text-sm font-mono uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-5">
+                    评论
+                    <span v-if="commentCounts[index] != null"
+                          class="ml-2 text-emerald-600 dark:text-emerald-400">{{ commentCounts[index] }}</span>
+                  </h3>
+
+                  <!-- 加载中 / 出错提示，代替一个说不清状况的空白区 -->
+                  <div v-if="commentState[index] === 'loading'"
+                       class="text-sm text-gray-500 dark:text-gray-400 py-4">评论加载中…</div>
+                  <div v-else-if="commentState[index] === 'error'"
+                       class="text-sm text-gray-500 dark:text-gray-400 py-4">
+                    评论加载失败，可能是服务地址填错或服务暂时不可用。
+                    <button type="button" class="ml-1 underline hover:text-emerald-500"
+                            @click="retryComments(index)">重试</button>
+                  </div>
+
+                  <div :id="commentsElId(index)"></div>
+                </section>
               </div>
 
               <button @click="toggleArticle(index)"
@@ -561,6 +600,13 @@
 <script src="icons.js"></script>
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 
+<!--
+  评论组件（Waline）。注意这里是普通 script 而不是 async/defer：
+  defer 也能达到同样效果，但放在 body 末尾的普通 script 更简单可靠 ——
+  它会在下面那段初始化代码之前执行完，所以不会出现 Waline 未定义的情况。
+-->
+<script src="vendor/waline/waline.umd.js"></script>
+
 <script>
 (function () {
   'use strict';
@@ -619,6 +665,7 @@
   var createApp = Vue.createApp;
   var ref = Vue.ref;
   var computed = Vue.computed;
+  var watch = Vue.watch;
   var onMounted = Vue.onMounted;
   var onUnmounted = Vue.onUnmounted;
 
@@ -637,6 +684,17 @@
       var about = D.about || { title: '关于我', paragraphs: [] };
       var intro = D.intro || { title: "Leafer's Garden", hint: '点击进入', englishHint: 'CLICK TO ENTER' };
       var playlist = D.playlist || [];
+
+      /* ---------------- 评论（Waline） ---------------- */
+      // 配置放在 data.json 的 comments 里，后台可改。
+      // serverURL 为空时整站不显示评论区 —— 这样在服务搭好之前不会有半个空框子露在外面。
+      var commentsCfg = D.comments || {};
+      var commentsReady = !!commentsCfg.serverURL;
+
+      var commentInstances = {};   // 文章序号 -> Waline 实例，用于销毁
+      var commentCounts = ref({});  // 文章序号 -> 评论数（从渲染结果里读）
+      var commentState = ref({});   // 文章序号 -> 'loading' | 'ready' | 'error'
+      var walineLoading = null;     // 脚本加载的 Promise，避免并发重复加载
 
       var backgroundBaseColor = D.backgroundBaseColor || '#0b0f14';
       var backgroundInterval = D.backgroundInterval || 8000;
@@ -843,6 +901,152 @@
         expandedIndex.value = (expandedIndex.value === index) ? null : index;
       }
 
+      /* ---------------- 评论：挂载与销毁 ----------------
+         生命周期设计（这里最容易出错，写清楚原因）：
+         - Waline 实例必须手动创建与销毁，Vue 管不了它内部的 DOM
+         - 谁该触发重建：只有「当前展开的文章序号」变化时才需要，
+           所以用一个 computed(commentHostKey) 作为唯一信号，watch 它
+         - 为什么不用 :ref 回调：函数式 ref 每次渲染都是新函数，
+           Vue 会先以 null 再以元素调用它，等于每渲染一次就销毁重建一次，
+           实测会无限循环并把主线程卡死
+      -------------------------------------------------- */
+      var commentHostKey = computed(function () {
+        if (!commentsReady) return '';
+        var i = expandedIndex.value;
+        return (currentPage.value === 'thoughts' && i !== null) ? 'thoughts:' + i : '';
+      });
+
+      function commentsElId(index) {
+        return 'waline-thread-' + index;
+      }
+
+      function setCommentState(index, state) {
+        var next = Object.assign({}, commentState.value);
+        if (state === null) delete next[index];
+        else next[index] = state;
+        commentState.value = next;
+      }
+
+      /** 销毁全部实例（切换文章、收起文章、离开帖子页时调用） */
+      function teardownComments() {
+        Object.keys(commentInstances).forEach(function (k) {
+          var inst = commentInstances[k];
+          if (inst && typeof inst.destroy === 'function') {
+            try { inst.destroy(); } catch (e) { /* 销毁失败不影响后续 */ }
+          }
+          delete commentInstances[k];
+        });
+      }
+
+      /** 脚本若未加载成功则动态补上（正常情况 index.html 里已经引了） */
+      function ensureWaline() {
+        if (typeof window.Waline !== 'undefined') return Promise.resolve();
+        if (walineLoading) return walineLoading;
+        walineLoading = new Promise(function (resolve, reject) {
+          var s = document.createElement('script');
+          s.src = 'vendor/waline/waline.umd.js';
+          s.onload = function () {
+            typeof window.Waline !== 'undefined'
+              ? resolve()
+              : reject(new Error('脚本已加载但未暴露 Waline'));
+          };
+          s.onerror = function () { reject(new Error('Waline 脚本加载失败')); };
+          document.body.appendChild(s);
+        });
+        return walineLoading;
+      }
+
+      /**
+       * 初始化某篇文章的评论区。
+       *
+       * path 用 '/thoughts/<序号>' 而不是 location.pathname ——
+       * 本站是单页应用，所有文章共用同一个 URL，
+       * 若用 pathname，全部文章会共用同一份评论。
+       */
+      function initWaline(index) {
+        var el = document.getElementById(commentsElId(index));
+        if (!el || !commentsReady) return;
+        setCommentState(index, 'loading');
+
+        ensureWaline().then(function () {
+          // 异步返回时用户可能已经收起文章或切走，必须重新确认容器还在
+          if (!el.isConnected) return;
+          teardownComments();
+          try {
+            commentInstances[index] = window.Waline.init({
+              el: el,
+              serverURL: commentsCfg.serverURL,
+              path: '/thoughts/' + index,
+              lang: commentsCfg.lang || 'zh-CN',
+              pageSize: commentsCfg.pageSize || 10,
+              login: commentsCfg.login || 'enable',
+              requiredMeta: commentsCfg.requiredMeta || [],
+              meta: commentsCfg.meta || ['nick', 'mail', 'link'],
+              commentSorting: commentsCfg.commentSorting || 'latest',
+              pageview: false,
+              reaction: false,
+              // 表情包在 unpkg 上，国内可能慢；配置为空数组则不显示表情
+              emoji: (commentsCfg.emojiPresets && commentsCfg.emojiPresets.length)
+                ? commentsCfg.emojiPresets
+                : false,
+              // 本站用 html.dark 切换暗色，Waline 会在该选择器生效时自动换配色
+              dark: 'html.dark',
+              // 用不到的功能关掉，少加载一些资源
+              search: false,
+              imageUploader: false
+            });
+            setCommentState(index, 'ready');
+            // 等 Waline 把评论列表渲染出来后再读条数
+            window.setTimeout(function () { readCommentCount(index); }, 1200);
+          } catch (err) {
+            console.error('评论初始化失败:', err);
+            setCommentState(index, 'error');
+          }
+        }).catch(function (err) {
+          console.error(err);
+          setCommentState(index, 'error');
+        });
+      }
+
+      function retryComments(index) {
+        teardownComments();
+        setCommentState(index, null);
+        initWaline(index);
+      }
+
+      /**
+       * 从已渲染的 DOM 里读评论条数。
+       *
+       * 为什么不用 Waline 的 commentCount() 接口：
+       *   那个导出的签名并不是文档里「传 serverURL + paths」的用法
+       *   （实测它去读元素的 pathname，传对象会直接抛错），
+       *   一旦抛错还会连累页面。这里改成从 Waline 自己渲染出的计数元素读，
+       *   读不到就不显示，绝不会因为统计失败影响评论本身。
+       */
+      function readCommentCount(index) {
+        var el = document.getElementById(commentsElId(index));
+        if (!el) return;
+        var nodes = el.querySelectorAll('[class*="count"]');
+        for (var i = 0; i < nodes.length; i++) {
+          var m = /(\d+)/.exec(nodes[i].textContent || '');
+          if (m) {
+            var next = Object.assign({}, commentCounts.value);
+            next[index] = Number(m[1]);
+            commentCounts.value = next;
+            return;
+          }
+        }
+      }
+
+      // 展开的文章变化时才重建评论区
+      watch(commentHostKey, function (key) {
+        teardownComments();
+        if (!key) return;
+        var index = Number(key.split(':')[1]);
+        // flush: 'post' 保证 DOM 已更新，容器一定存在
+        Vue.nextTick(function () { initWaline(index); });
+      }, { flush: 'post' });
+
       function scrollToTop() {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
@@ -971,6 +1175,9 @@
         seek: seek, setVolume: setVolume, formatTime: formatTime,
         onTimeUpdate: onTimeUpdate, onLoadedMetadata: onLoadedMetadata, onAudioError: onAudioError,
         openLightbox: openLightbox, closeLightbox: closeLightbox, stepLightbox: stepLightbox,
+        // 评论
+        commentsReady: commentsReady, commentCounts: commentCounts, commentState: commentState,
+        commentsElId: commentsElId, retryComments: retryComments,
         // 图标
         icon: icon
       };

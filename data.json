@@ -36,6 +36,25 @@
       "content": "最值得庆祝的时刻，接着迎接世界吧。"
     }
   ],
+  "comments": {
+    "serverURL": "https://leafer-pi.vercel.app",
+    "lang": "zh-CN",
+    "pageSize": 10,
+    "login": "enable",
+    "requiredMeta": [
+      "nick"
+    ],
+    "meta": [
+      "nick",
+      "mail",
+      "link"
+    ],
+    "emojiPresets": [
+      "https://unpkg.com/@waline/emojis@1.1.0/weibo",
+      "https://unpkg.com/@waline/emojis@1.1.0/bilibili"
+    ],
+    "commentSorting": "latest"
+  },
   "about": {
     "paragraphs": [
       {

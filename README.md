@@ -35,6 +35,7 @@
 │   ├── migrate-to-json.js  # data.js -> data.json，带逐字段校验
 │   ├── verify-cms-config.js# 校验 config.yml 是否漏配字段（防止保存时丢数据）
 │   ├── build-icons.js      # 从 Font Awesome 包提取图标 path，并校验图标名
+│   ├── build-waline.js     # 下载 Waline 客户端到 vendor/waline/
 │   ├── preview-about.js    # 终端里预览"关于我"文案 + 字数/句长/主语密度检查
 │   ├── serve.js            # 本地预览服务器（模拟 Linux 大小写敏感）
 │   ├── wait-pages.js       # 推送后轮询等待 GitHub Pages 部署完成
@@ -43,8 +44,13 @@
 │   ├── check-theme.js      # 主题记忆逻辑的自动化断言
 │   ├── check-about.js      # 「关于我」段落是否全部正确渲染
 │   ├── check-admin.js      # `/admin` 后台能否加载、config.yml 能否解析
+│   ├── check-comments.js   # 评论区：渲染、按文章隔离、暗色、服务端连通性
 │   ├── check-lazy.js       # 图片懒加载是否生效的检查
-│   └── diag.js             # DOM 诊断，排查资源加载问题
+│   ├── diag.js             # DOM 诊断，排查资源加载问题
+│   └── diag-comments.js    # 评论区逐步诊断（定位主线程卡死之类的问题）
+│
+├── vendor/waline/          # 【必须提交】自托管的 Waline 评论客户端
+│   └── SOURCE.txt          # 记录版本与来源；用 npm run build:waline 更新
 │
 ├── img/                    # 【页面实际引用】压缩后的 WebP 图片 + 后台上传的图片
 │   └── manifest.json       # 原图 -> 压缩图的映射清单
@@ -215,7 +221,67 @@ npm run verify:cms
 
 ---
 
-## 五、想换成真正的服务器该怎么办
+## 五、评论区（Waline）
+
+评论用的是 [Waline](https://waline.js.org/)，服务端部署在 Vercel，数据存在你的数据库里。
+**不需要为此买服务器** —— 它跑在 serverless 平台上，免费额度对个人博客绰绰有余。
+
+### 配置
+
+配置在 `data.json` 的 `comments` 字段，也可以直接在 `/admin/` 后台改：
+
+| 字段 | 说明 |
+| --- | --- |
+| `serverURL` | Waline 服务地址。**留空则整站不显示评论区**（不会露出空框子） |
+| `lang` | 界面语言 |
+| `pageSize` | 每页评论条数 |
+| `login` | `enable` 可登录也可匿名 / `disable` 只能匿名 / `force` 必须登录 |
+| `requiredMeta` | 哪些项必填，默认只要昵称 —— 不强制邮箱可降低留言门槛 |
+| `emojiPresets` | 表情包地址。这些在 unpkg 上，国内可能慢，**留空则不显示表情** |
+| `commentSorting` | `latest` / `oldest` / `hottest` |
+
+### 实现要点
+
+* **按文章隔离**：本站是单页应用，所有文章共用一个 URL，
+  所以不能拿 `location.pathname` 当评论标识 —— 那样所有文章会共用同一份评论。
+  代码里用的是 `/thoughts/<文章序号>`，见 `initWaline()`。
+* **生命周期**：Waline 实例由 `watch(commentHostKey)` 统一创建与销毁。
+  这里**不能用 Vue 的函数式 `:ref`** —— 它每次渲染都是新函数，
+  Vue 会先以 `null` 再以元素调用，等于每次渲染都销毁重建一遍，
+  实测会引发无限渲染循环把主线程卡死。
+* **懒加载**：不点开文章就不会下载那 257KB 的评论组件。
+* **暗色适配**：传的是 `dark: 'html.dark'`，与本站的主题切换方式对应。
+* **自托管客户端**：`vendor/waline/` 是 Waline 的构建产物，**必须提交到仓库**
+  （GitHub Pages 不构建）。升级方式：
+
+  ```bash
+  # 改 tools/build-waline.js 里的 VERSION，然后
+  npm run build:waline
+  ```
+
+  不用 unpkg CDN 的原因：本站已经把 Tailwind / Google Fonts / Font Awesome
+  这些海外 CDN 全部清掉了，不该在这里又引一个回来。自己托管后，
+  评论区的可用性只取决于你自己的 Waline 服务。
+
+### ⚠️ 国内访问的重要限制
+
+Waline 部署在 Vercel 后拿到的 `xxx.vercel.app` 域名**在国内是被墙的**。
+这意味着国内访客可能加载不出评论区（页面其他部分不受影响）。
+
+要解决必须**绑定一个自己的域名**（在 Vercel 项目里加 Domain，
+再到域名服务商加一条 CNAME 指向 `cname.vercel-dns.com`）。
+没有自有域名的话，这条路走不通 —— 除非把 Waline 迁到国内云厂商，但那需要备案。
+
+### 验证
+
+```bash
+node tools/check-comments.js      # 渲染、按文章隔离、暗色、服务端连通性
+node tools/diag-comments.js       # 出问题时逐步定位卡在哪一步
+```
+
+---
+
+## 六、想换成真正的服务器该怎么办
 
 先用一句话判断你到底需不需要服务器：
 
@@ -249,7 +315,7 @@ npm run verify:cms
 
 ---
 
-## 六、本次改进说明
+## 七、本次改进说明
 
 ### 1. 修掉的线上 Bug
 
@@ -302,7 +368,7 @@ npm run verify:cms
 
 ---
 
-## 七、质量校验
+## 八、质量校验
 
 改动后做过的自动化验证（均为无头浏览器真实渲染，非静态检查）：
 
@@ -311,14 +377,31 @@ npm run serve                        # 另开一个终端
 
 node tools/screenshot.js             # 渲染检查：JS 异常、404、横向溢出、首屏体积、截图
 node tools/check-theme.js            # 主题：14 项断言，深色/浅色两种系统偏好各跑一遍
-node tools/check-about.js            # 「关于我」：段落/配图是否全部按 data.js 渲染
+node tools/check-about.js            # 「关于我」：段落/配图是否全部按 data.json 渲染
+node tools/check-comments.js         # 评论区：渲染、按文章隔离、暗色、服务端连通性
+node tools/check-admin.js            # /admin 后台：脚本加载、config.yml 解析
 node tools/check-lazy.js             # 懒加载是否生效
 node tools/diag.js                   # 资源加载诊断
 
 node tools/preview-about.js          # 改完文案先看这个，不用开浏览器
 node tools/shot.js http://127.0.0.1:8899/ about-text 1150   # 截指定位置校对排版
 node tools/wait-pages.js             # 推送后等 Pages 部署完（默认最多 5 分钟）
+npm run verify:cms                   # 改完 admin/config.yml 必跑，防止字段漏配丢数据
 ```
+
+当前结果：
+
+- JS 异常 **0** 条，本站资源 404 **0** 个
+- `<main>` 数量 **1**（正确）
+- 桌面端与 390px 移动端横向溢出均为 **0**
+- 主题逻辑 **14/14** 断言通过
+- 「关于我」渲染 **7/7** 项通过（4 个小标题、15 段正文、7 张配图全部匹配）
+- 评论区 **11/11** 项通过（渲染、按文章隔离、收起后销毁、暗色跟随、服务端 200）
+- `/admin` 后台 **5/5** 项通过
+
+> `tools/check-*.js` 这类脚本都会先清 localStorage 再测。
+> 这不是洁癖：主题记录会被上一次运行写入，
+> 不清掉的话"浅色→深色"的对比会失去意义，曾经因此误判成"暗色不生效"。
 
 当前结果：
 
@@ -335,7 +418,7 @@ node tools/wait-pages.js             # 推送后等 Pages 部署完（默认最�
 
 ---
 
-## 八、可调参数速查
+## 九、可调参数速查
 
 如果觉得某些取舍不合适，可以按下面调：
 

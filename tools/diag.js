@@ -64,6 +64,14 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   await evaluate(`window.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter'})); true`);
   await sleep(1500);
 
+  // 关键：先滚到底再检查。
+  // 页面用 loading="lazy"，视口外的图片本来就不会加载 ——
+  // 不滚动就统计，会把"还没轮到加载"误报成"加载失败"（曾误报 3 张）。
+  await evaluate(`window.scrollTo(0, document.body.scrollHeight); true`);
+  await sleep(4000);
+  await evaluate(`window.scrollTo(0, 0); true`);
+  await sleep(800);
+
   const rows = await evaluate(`(() => {
     return [...document.images].map(i => {
       const cs = getComputedStyle(i);
