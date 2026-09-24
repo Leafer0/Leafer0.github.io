@@ -1,0 +1,19 @@
+# 依赖（由 npm install 生成，不需要提交）
+node_modules/
+
+# 构建与打包产物
+dist/
+*.log
+
+# 本地验证脚本生成的截图（仅用于人工核对，不必提交）
+.preview/
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# 注意：style.css 是构建产物但**必须提交**，
+# 因为 GitHub Pages 只托管静态文件，不会在服务器上跑 npm run build。
+# 所以这里刻意不忽略它。

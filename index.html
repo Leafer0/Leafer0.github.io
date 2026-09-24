@@ -1,851 +1,946 @@
 <!DOCTYPE html>
-<html lang="zh-CN" class="scroll-smooth">
+<html lang="zh-CN">
 <head>
-    <script src="data.js"></script>
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-380DY1KLKD"></script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#FDFBF7">
+
+<!--
+  ============================================================
+   主题预置：必须放在 <head> 最前面、且早于 <body> 渲染。
+   作用是记住上次选的主题，避免刷新时先闪一下白底再变黑。
+   以前主题存在内存里，一刷新就回到系统默认，等于没用。
+   这段是同步执行的，不产生额外网络请求。
+  ============================================================
+-->
+<script>
+(function () {
+  var KEY = 'leafer-theme';
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch (e) { /* 隐私模式下会抛错，忽略即可 */ }
+  var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  var dark = saved ? saved === 'dark' : prefersDark;
+  if (dark) {
+    document.documentElement.classList.add('dark');
+    var m = document.querySelector('meta[name="theme-color"]');
+    if (m) m.setAttribute('content', '#0b0f14');
+  }
+  // 供页面 JS 读取：用户是否手动选择过主题
+  window.__hasExplicitTheme = saved !== null;
+})();
+</script>
+
+<title>Leafer · 个人主页</title>
+<meta name="description" content="Leafer 的个人主页与随笔集 —— 05 年软工学生，VRChat 玩家与音游爱好者，在这里记录想法、照片和音乐。">
+<meta name="author" content="Leafer">
+<meta name="keywords" content="Leafer,个人主页,博客,VRChat,音游,前端,随笔">
+
+<!-- 分享卡片：以前完全没有，链接发到 QQ / 微信 / Discord 都是一片空白 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Leafer's Garden">
+<meta property="og:title" content="Leafer · 个人主页">
+<meta property="og:description" content="05 年软工学生，VRChat 玩家与音游爱好者，在这里记录想法、照片和音乐。">
+<meta property="og:image" content="img/bg2.png.webp">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Leafer · 个人主页">
+<meta name="twitter:description" content="05 年软工学生，VRChat 玩家与音游爱好者，在这里记录想法、照片和音乐。">
+<meta name="twitter:image" content="img/bg2.png.webp">
+
+<!--
+  图标：直接内联 SVG，不再引用 Font Awesome 的 CDN。
+  原来那个 CSS 有 1.2MB 且在国内经常加载失败，失败时全站图标全部消失。
+-->
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🍃</text></svg>">
+<link rel="apple-touch-icon" href="img/Leafer.jpg.webp">
+
+<!-- 字体：不再请求 fonts.googleapis.com（国内长期不可用）。
+     改用系统内置中文字体栈，在 Windows 是微软雅黑、macOS/iOS 是苹方、
+     安卓是思源黑体，都无需下载，首屏零字体请求。 -->
+
+<!-- 预加载首屏背景与头像，让 LCP 更早开始 -->
+<link rel="preload" as="image" href="img/bg3.png.webp" fetchpriority="high">
+<link rel="preload" as="image" href="img/Leafer.jpg.webp">
+
+<!--
+  Tailwind 主题配置。
+  原来这里内联了一整份 tailwind.config，现在改为从 tailwind.config.js
+  自动导出的 site-theme.js 读取，保证页面与本地构建用的是同一套主题，
+  不会出现"改了配置但页面没生效"的情况。
+  这段必须在 style.css 之前加载。
+-->
+<script src="site-theme.js"></script>
+<script>
+  // 受保护地合并：即使 site-theme.js 没加载成功，也不会让页面报错
+  window.tailwind = { config: (window.__SITE_THEME || {}) };
+</script>
+<link rel="stylesheet" href="style.css">
+
+<!--
+  统计脚本。原来它们放在 </body> 后且 gtag 是渲染阻塞的，
+  这里统一改为 async，并且 busuanzi 加载失败时会自动降级显示 "—"。
+-->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-380DY1KLKD"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
+  function gtag() { dataLayer.push(arguments); }
   gtag('js', new Date());
-
   gtag('config', 'G-380DY1KLKD');
 </script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leafer？</title>
-    
-    <!-- 引入 Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    
-    <script>
-        tailwind.config = {
-            darkMode: 'class',
-            theme: {
-                extend: {
-                    colors: {
-                        paper: '#FDFBF7',
-                    },
-                    fontFamily: {
-                        sans: ['Noto Sans SC', 'sans-serif'],
-                        serif: ['Noto Serif SC', 'serif'],
-                    }
-                }
-            }
-        }
-    </script>
-
-    <!-- 引入 Vue 3 -->
-    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-
-    <style>
-        body { font-family: 'Noto Sans SC', sans-serif; }
-        .prose-text { font-family: 'Noto Serif SC', serif; }
-        
-        .photo-card {
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    background: linear-gradient(135deg, #ffffff 0%, #f9f9f9 100%);
-    box-shadow: 0 10px 20px rgba(0,0,0,0.05), 0 6px 6px rgba(0,0,0,0.1);
-    position: relative;
-    overflow: visible; /* 允许装饰溢出 */
-}
-/* 点击涟漪特效 */
-.click-ripple {
-    position: fixed;
-    border: 2px solid #10b981; /* 翠绿色 */
-    background: rgba(16, 185, 129, 0.1);
-    border-radius: 50%;
-    pointer-events: none; /* 不干扰点击 */
-    z-index: 9999;
-    animation: ripple-out 0.6s ease-out forwards;
-}
-
-@keyframes ripple-out {
-    from { width: 0; height: 0; opacity: 1; transform: translate(-50%, -50%); }
-    to { width: 80px; height: 80px; opacity: 0; transform: translate(-50%, -50%); }
-}
-
-/* 鼠标移动粒子 */
-.cursor-dot {
-    position: fixed;
-    width: 6px;
-    height: 6px;
-    background: #10b981;
-    border-radius: 50%;
-    pointer-events: none;
-    z-index: 9998;
-    transition: transform 0.1s ease;
-    animation: dot-fade 0.5s ease-out forwards;
-}
-
-@keyframes dot-fade {
-    from { opacity: 1; transform: scale(1); }
-    to { opacity: 0; transform: scale(0.3); }
-}
-/* 1. 核心遮罩层：背景分割动画 */
-        .intro-bg-left, .intro-bg-right {
-            transition: transform 1.2s cubic-bezier(0.87, 0, 0.13, 1);
-        }
-
-/* 2. 文字炫光与书写感动画 */
-        .shimmer-text {
-            background: linear-gradient(90deg, #333 0%, #10b981 50%, #333 100%);
-            background-size: 200% auto;
-            color: transparent;
-            -webkit-background-clip: text;
-            background-clip: text;
-            animation: shine 3s linear infinite;
-        }
-
-        @keyframes shine {
-            to { background-position: 200% center; }
-        }
-
-/* 3. 进场时缩放与模糊消失 */
-        .intro-content-leave {
-            filter: blur(10px);
-            transform: scale(1.1);
-            opacity: 0;
-            transition: all 0.8s ease-in;
-        }   
-
-/* 4. 底部装饰线拉伸 */
-        .line-grow {
-            width: 0;
-            height: 2px;
-            background: #10b981;
-            animation: grow 1.5s ease-out forwards;
-            animation-delay: 0.5s;
-        }
-
-        @keyframes grow {
-            to { width: 150px; }
-        }
-        .photo-card {
-    cursor: pointer;
-    transition: all 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); /* 增加回弹感 */
-}
-/* 悬停时的浮起效果 */
-       .photo-card:hover {
-    transform: translateY(-15px) rotate(0deg) scale(1.1) !important; /* 悬停时回正 */
-    z-index: 50;
-    filter: brightness(1.1);
-}
-
-/* 模拟胶带装饰 */
-       .photo-card::before {
-    background: rgba(255, 255, 255, 0.5);
-    transform: translateX(-50%) rotate(-2deg);
-    mask-image: linear-gradient(to bottom, white, transparent); /* 边缘羽化 */
-}
-/* 深色模式适配 */
-        .dark .photo-card {
-        background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
-        box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-        }
-        /* 页面切换动画 */
-        .fade-enter-active, .fade-leave-active {
-            transition: opacity 0.3s ease;
-        }
-        .fade-enter-from, .fade-leave-to {
-            opacity: 0;
-        }
-
-        /* 背景轮播过渡：淡入淡出效果 */
-        .bg-fade-enter-active, .bg-fade-leave-active {
-            transition: opacity 2s ease-in-out;
-        }
-        .bg-fade-enter-from, .bg-fade-leave-to {
-            opacity: 0;
-        }
-
-        .sidebar-transition {
-            transition: transform 0.3s ease-in-out;
-        }
-
-        .fade-in-up {
-            animation: fadeInUp 1s ease-out forwards;
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        @keyframes fadeInUp {
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* 磨砂玻璃效果增强 */
-        .glass-panel {
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
-        }
-       /* 背景缓慢缩放动画 (Ken Burns Effect) */
-@keyframes kenburns {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.1); } /* 缓慢放大到1.1倍 */
-    100% { transform: scale(1); }
-}
-
-.bg-animate {
-    /* 20秒完成一次呼吸循环，线性运动，无限循环 */
-    animation: kenburns 20s linear infinite;
-}
-/* 定义浮现动画 */
-@keyframes fadeInUp {
-    from {
-        opacity: 0;
-        transform: translateY(20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-/* 这里的 stagger-in 是容器类名 */
-.stagger-in > * {
-    opacity: 0; /* 初始隐藏 */
-    animation: fadeInUp 0.8s ease forwards;
-}
-
-/* 为每一段设置延迟，营造错落感 */
-.stagger-in > *:nth-child(1) { animation-delay: 0.1s; }
-.stagger-in > *:nth-child(2) { animation-delay: 0.2s; }
-.stagger-in > *:nth-child(3) { animation-delay: 0.3s; }
-.stagger-in > *:nth-child(4) { animation-delay: 0.4s; }
-.stagger-in > *:nth-child(5) { animation-delay: 0.5s; }
-.stagger-in > *:nth-child(6) { animation-delay: 0.6s; }
-    /* 导航项基础样式优化 */
-nav button {
-    position: relative;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* 悬停时的微光效果 */
-nav button:hover {
-    padding-left: 1.5rem; /* 向右微移 */
-    background: rgba(16, 185, 129, 0.05); /* 极淡的翠绿色 */
-}
-
-/* 激活状态的左侧指示条 */
-.nav-active-bar {
-    position: absolute;
-    left: 0;
-    top: 20%;
-    height: 60%;
-    width: 4px;
-    background: #10b981;
-    border-radius: 0 4px 4px 0;
-    box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
-    animation: barGrow 0.4s ease-out;
-}
-
-@keyframes barGrow {
-    from { height: 0; opacity: 0; }
-    to { height: 60%; opacity: 1; }
-}
-
-/* 侧边栏整体的毛玻璃增强 */
-.glass-panel {
-    border-right: 1px solid rgba(255, 255, 255, 0.1);
-}
-@media (max-width: 768px) {
-    /* 确保手机端 body 和 app 容器允许内容溢出 */
-    body, #app {
-        overflow-y: visible !important;
-        height: auto !important;
-    }
-    
-    /* 让主内容区域自然滚动，而不是依赖内部滚动条 */
-    main {
-        height: auto !important;
-        overflow-y: visible !important;
-    }
-}
-/* 强制修复 Valine 在深色模式下的文字颜色 */
-.dark #vcomments .vlist .vcard .vcontent,
-.dark #vcomments .vlist .vcard .vhead .vnick,
-.dark #vcomments .vlist .vcard .vhead .vtime {
-    color: #e5e7eb !important; /* 浅灰色文字 */
-}
-
-.dark #vcomments .vpanel,
-.dark #vcomments .vinput {
-    background: #1f2937 !important; /* 深色背景 */
-    color: #f3f4f6 !important;
-}
-
-/* 之前提到的 prose 文字黑色的全局修复 */
-.dark .prose-text, 
-.dark p, 
-.dark .text-gray-800 {
-    color: #f3f4f6 !important;
-}
-/* 图片放大时的淡入动画 */
-.animate-fade-in {
-    animation: fadeIn 0.3s ease-out;
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; transform: scale(0.95); }
-    to { opacity: 1; transform: scale(1); }
-}
-
-/* 锁定背景滚动 */
-body:has(.cursor-zoom-out) {
-    overflow: hidden;
-}
-
-@keyframes spin-slow {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-}
-.animate-spin-slow {
-    animation: spin-slow 12s linear infinite;
-}
-    </style>
 </head>
-<body :class="['bg-paper dark:bg-gray-950 transition-colors duration-700', showIntroScreen ? 'overflow-hidden' : '']">
 
-<div id="app">
-    <div v-for="ripple in ripples" :key="ripple.id" 
-     class="click-ripple" 
-     :style="{ left: ripple.x + 'px', top: ripple.y + 'px' }">
-</div>
+<body class="bg-paper dark:bg-gray-950 text-gray-800 dark:text-gray-100 font-sans antialiased transition-colors duration-500">
 
-<div v-for="dot in dots" :key="dot.id" 
-     class="cursor-dot" 
-     :style="{ left: dot.x + 'px', top: dot.y + 'px' }">
-</div>
-   <div v-if="showIntroScreen" 
-     @click="startEverything"
-     class="fixed inset-0 z-[100] flex flex-col items-center justify-center cursor-pointer">
-    
-    <div :class="['absolute inset-y-0 left-0 w-1/2 bg-paper dark:bg-gray-900 transition-transform duration-1000', !showIntro ? '-translate-x-full' : '']"></div>
-    <div :class="['absolute inset-y-0 right-0 w-1/2 bg-paper dark:bg-gray-900 transition-transform duration-1000', !showIntro ? 'translate-x-full' : '']"></div>
-    
-    <div :class="['relative z-[110] flex flex-col items-center transition-all duration-700', !showIntro ? 'opacity-0 scale-110 blur-md' : 'opacity-100']">
-        <div class="relative w-24 h-24 mb-8">
-            <div class="absolute inset-0 border-4 border-emerald-500/20 rounded-full"></div>
-            <div class="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-        <h1 class="text-4xl md:text-6xl font-bold font-serif shimmer-text mb-4">Leafer's Garden</h1>
-        <div class="line-grow mb-6"></div>
-        <div class="text-emerald-500 font-mono animate-pulse text-lg">CLICK TO ENTER</div>
-        <p class="text-gray-400 tracking-widest text-xs mt-2">点击进入</p>
-    </div>
-</div>
-        <div class="fixed inset-0 z-0 overflow-hidden bg-gray-200 dark:bg-gray-900">
-    <transition-group name="bg-fade">
-        <div v-for="(bg, index) in backgroundImages" 
-             :key="index" 
-             v-show="currentBgIndex === index"
-             class="absolute inset-0 bg-cover bg-center bg-no-repeat bg-animate"
-             :style="{ backgroundImage: `url(${bg})`, zIndex: index === currentBgIndex ? 1 : 0 }">
-        </div>
-    </transition-group>
-    <div class="absolute inset-0 z-10 bg-white/60 dark:bg-black/75 backdrop-blur-[1px] transition-colors duration-700"></div>
-</div>
-        <div class="relative z-20 min-h-screen flex flex-col md:flex-row">
-            
-            <!-- 移动端顶部状态栏 -->
-            <div class="md:hidden flex items-center justify-between p-4 bg-white/80 dark:bg-gray-900/80 backdrop-blur border-b dark:border-gray-800 sticky top-0 z-40">
-                <span class="font-serif font-bold text-lg">Leafer</span>
-                <button @click="sidebarOpen = !sidebarOpen" class="p-2 text-gray-600 dark:text-gray-300">
-                    <i class="fas fa-bars text-xl"></i>
-                </button>
-            </div>
+<div id="app" v-cloak>
 
-            <!-- 侧边栏 Sidebar -->
-            <aside :class="[
-                'fixed inset-y-0 left-0 z-50 w-64 bg-white/70 dark:bg-gray-900/70 glass-panel border-r border-gray-100 dark:border-gray-800 sidebar-transition md:translate-x-0 md:static',
-                sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-            ]">
-                <div class="h-full flex flex-col p-8">
-                    <div class="px-4 mt-6 text-center">
-    <span class="text-[9px] font-mono text-gray-400 uppercase">Uptime: </span>
-    <span class="text-[9px] font-mono text-emerald-500">{{ runtime }}</span>
-</div>
-                    
-                    <!-- 头像区域 -->
-                    <div class="w-24 h-24 mx-auto mb-4 relative">
-    <img :src="personalInfo.avatar" class="w-full h-full object-cover rounded-full border-2 border-emerald-500/20 shadow-lg">
-    <div class="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-white dark:border-gray-900 rounded-full animate-pulse shadow-[0_0_8px_#10b981]"></div>
-</div>
-
-<h2 class="text-xl font-bold font-serif">{{ personalInfo.name }}</h2>
-
-<div class="text-[10px] font-mono text-emerald-500/60 mt-1 uppercase tracking-widest">
-    Status: {{ randomStatus }}
-</div>
-
-<p class="text-xs text-gray-400 dark:text-gray-500 mt-4 italic px-2 border-l-2 border-emerald-500/20 py-1">
-    “{{ currentQuote }}”
-</p>
-                    <!-- 导航菜单 -->
-                    <nav class="flex-1 space-y-2">
-                        <div class="mt-8 px-4 space-y-4">
-    <div class="text-[10px] font-mono text-emerald-500/40 uppercase tracking-widest mb-2">System Metrics</div>
-    <div class="space-y-1">
-        <div class="flex justify-between text-[10px] uppercase">
-            <span class="text-gray-400">脑啡肽</span>
-            <span class="text-emerald-500">82%</span>
-        </div>
-        <div class="h-[2px] w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-            <div class="h-full bg-emerald-500 animate-[pulse_2s_infinite]" style="width: 82%"></div>
-        </div>
-    </div>
-    <div class="space-y-1">
-        <div class="flex justify-between text-[10px] uppercase">
-            <span class="text-gray-400">san值</span>
-            <span class="text-blue-400">95%</span>
-        </div>
-        <div class="h-[2px] w-full bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-            <div class="h-full bg-blue-400" style="width: 95%"></div>
-        </div>
-    </div>
-</div> <button v-for="item in navItems" :key="item.id" 
-       @click="changePage(item.id)"
-       :class="[
-           'w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all group relative',
-           currentPage === item.id 
-           ? 'bg-emerald-50/50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400' 
-           : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
-       ]">
-        
-        <div v-if="currentPage === item.id" class="nav-active-bar"></div>
-        
-        <i :class="[item.icon, 'mr-3 w-5 text-center group-hover:scale-120 transition-transform duration-300', currentPage === item.id ? 'scale-110' : '']"></i>
-        <span class="relative z-10">{{ item.name }}</span>
+  <!-- ==========================================================
+       1. 入场页
+       原来是 <div @click>，鼠标以外没法操作、读屏也读不到。
+       现在改成真正的 <button>，Tab 聚焦 + 回车/空格/ESC 均可进入。
+       ========================================================== -->
+  <div v-if="showIntroScreen"
+       class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-paper dark:bg-gray-900 transition-opacity duration-500"
+       :class="showIntro ? 'opacity-100' : 'opacity-0 pointer-events-none'">
+    <button
+      ref="introBtn"
+      @click="startEverything"
+      aria-label="点击进入 Leafer's Garden"
+      class="group flex flex-col items-center justify-center w-full h-full cursor-pointer focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-500/40 focus-visible:ring-inset">
+      <span class="relative w-20 h-20 mb-8 block">
+        <span class="absolute inset-0 border-4 border-emerald-500/20 rounded-full"></span>
+        <span class="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></span>
+      </span>
+      <span class="text-4xl md:text-6xl font-bold prose-text shimmer-text mb-4">{{ intro.title }}</span>
+      <span class="line-grow mb-6 block"></span>
+      <span class="text-emerald-500 font-mono animate-pulse text-lg">{{ intro.englishHint }}</span>
+      <span class="text-gray-400 tracking-widest text-xs mt-2">{{ intro.hint }}</span>
     </button>
-</nav>
-<div class="mt-6 px-4 py-3 bg-white/40 dark:bg-gray-800/40 rounded-2xl border border-white/20 dark:border-gray-700/30 backdrop-blur-sm">
-    <div class="flex items-center justify-between text-[10px] text-gray-400 uppercase font-mono mb-2">
-        <span>Web Traffic</span>
-        <i class="fas fa-chart-line text-emerald-500"></i>
-    </div>
-    <div class="flex flex-col gap-1">
-        <div class="flex justify-between items-center">
-            <span class="text-[11px] dark:text-gray-400">本站访客数</span>
-            <span id="busuanzi_value_site_uv" class="text-xs font-bold text-emerald-500 font-mono">--</span>
-        </div>
-        <div class="flex justify-between items-center">
-            <span class="text-[11px] dark:text-gray-400">本站访问量</span>
-            <span id="busuanzi_value_site_pv" class="text-xs font-bold text-blue-400 font-mono">--</span>
-        </div>
-    </div>
-</div>
+  </div>
 
-                    <!-- 底部设置与社交 -->
-                    <div class="mt-auto pt-6 border-t dark:border-gray-800">
-                        
-                        <div class="flex justify-around mb-6 text-gray-400">
-                            <a v-for="social in socialLinks" :key="social.icon" :href="social.href" class="hover:text-emerald-500 transition-colors">
-                                <i :class="social.icon"></i>
-                            </a>
-                        </div>
-                        <button @click="toggleTheme" class="w-full flex items-center justify-center p-3 rounded-xl bg-white/50 dark:bg-gray-800/50 text-sm font-medium border border-gray-200/50 dark:border-gray-700/50">
-                            <i v-if="isDark" class="fas fa-sun text-yellow-400 mr-2"></i>
-                            <i v-else class="fas fa-moon text-blue-500 mr-2"></i>
-                            {{ isDark ? '浅色模式' : '深色模式' }}
-                        </button>
-                    </div>
+  <!-- ==========================================================
+       2. 背景层
+       设计说明：这里从 v-show 改成 v-if，只挂载"当前帧"。
+       原因：v-show 是把所有 6 张图都塞进 DOM 再靠 display:none 隐藏，
+       而浏览器不会加载被隐藏的 lazy 图 —— 结果轮播到下一张时它才开始下载，
+       淡入前会有一瞬空白。改成按需挂载 + 主动预取下一帧（见 JS 里的
+       preloadNextBackground），切换始终是瞬间完成。
+       ========================================================== -->
+  <div class="fixed inset-0 z-0 overflow-hidden" aria-hidden="true"
+       :style="{ backgroundColor: backgroundBaseColor }">
+    <img v-if="currentBackground"
+         :key="currentBackground"
+         :src="currentBackground"
+         alt=""
+         loading="eager"
+         :fetchpriority="currentBgIndex === 0 ? 'high' : 'low'"
+         decoding="async"
+         class="absolute inset-0 w-full h-full object-cover bg-animate">
+    <!-- 压暗层：保证任何背景图下正文都有足够对比度。
+         原来是 bg-white/70，把照片压得几乎看不见，这里放宽到 55/70。 -->
+    <div class="absolute inset-0 z-10 bg-white/55 dark:bg-black/70 backdrop-blur-[2px] transition-colors duration-500"></div>
+  </div>
+
+  <!-- ==========================================================
+       3. 移动端顶栏
+       h-14 固定高度，主内容用 pt-14 让位，不靠 sticky 避免和 fixed 定位打架。
+       ========================================================== -->
+  <header class="md:hidden fixed top-0 inset-x-0 z-40 flex items-center justify-between h-14 px-4 bg-white/85 dark:bg-gray-900/85 backdrop-blur border-b border-gray-200/60 dark:border-gray-800">
+    <span class="prose-text font-bold text-lg">Leafer</span>
+    <button @click="sidebarOpen = !sidebarOpen"
+            class="p-2 -mr-2 text-gray-600 dark:text-gray-300 rounded-lg"
+            :aria-expanded="sidebarOpen ? 'true' : 'false'"
+            :aria-label="sidebarOpen ? '关闭菜单' : '打开菜单'">
+      <span class="block w-5 h-5" v-html="icon(sidebarOpen ? 'times' : 'bars')"></span>
+    </button>
+  </header>
+
+  <!-- ==========================================================
+       4. 侧边栏
+       ========================================================== -->
+  <aside id="sidebar"
+         :class="[
+           'fixed inset-y-0 left-0 z-50 w-64 bg-white/80 dark:bg-gray-900/80 glass-panel border-r border-gray-200/60 dark:border-gray-800 sidebar-transition md:translate-x-0',
+           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+         ]"
+         :aria-hidden="sidebarOpen ? 'false' : null">
+    <div class="h-full flex flex-col p-6 overflow-y-auto">
+
+      <!-- 头像 -->
+      <div class="w-24 h-24 mx-auto mb-4 relative flex-shrink-0">
+        <img :src="personalInfo.avatar" :alt="personalInfo.name + ' 的头像'"
+             width="256" height="256" loading="eager" decoding="async"
+             class="w-full h-full object-cover rounded-full border-2 border-emerald-500/20 shadow-lg">
+        <span class="absolute bottom-1 right-1 w-4 h-4 bg-emerald-500 border-2 border-white dark:border-gray-900 rounded-full animate-pulse shadow-[0_0_8px_#10b981]"
+              title="在线"></span>
+      </div>
+
+      <h2 class="text-xl font-bold prose-text text-center">{{ personalInfo.name }}</h2>
+
+      <div class="text-[10px] font-mono text-emerald-600 dark:text-emerald-400 mt-1 uppercase tracking-widest text-center">
+        Status: {{ randomStatus }}
+      </div>
+
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-4 italic px-3 border-l-2 border-emerald-500/30 py-1 leading-relaxed">
+        “{{ currentQuote }}”
+      </p>
+
+      <!-- 导航。role="tablist" + aria-current 让读屏能正确播报当前页 -->
+      <nav class="mt-8" aria-label="主导航">
+        <button v-for="item in navItems" :key="item.id"
+                @click="changePage(item.id)"
+                :aria-current="currentPage === item.id ? 'page' : null"
+                :class="[
+                  'w-full flex items-center px-4 py-3 rounded-xl text-sm font-medium transition-all duration-300 group relative mb-1.5',
+                  currentPage === item.id
+                    ? 'bg-emerald-50/70 text-emerald-700 dark:bg-emerald-900/25 dark:text-emerald-400'
+                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100 hover:bg-gray-100/60 dark:hover:bg-gray-800/40'
+                ]">
+          <span v-if="currentPage === item.id" class="nav-active-bar"></span>
+          <span class="mr-3 w-5 h-5 flex-shrink-0 transition-transform duration-300 group-hover:scale-110"
+                v-html="icon(item.icon)"></span>
+          <span>{{ item.name }}</span>
+        </button>
+      </nav>
+
+      <!-- 系统指标（装饰性内容，明确标注给读屏忽略） -->
+      <div class="mt-8 px-4 space-y-3" aria-hidden="true">
+        <div class="text-[10px] font-mono text-emerald-600/60 dark:text-emerald-400/50 uppercase tracking-widest">System Metrics</div>
+        <div v-for="meter in meters" :key="meter.label" class="space-y-1">
+          <div class="flex justify-between text-[10px]">
+            <span class="text-gray-500 dark:text-gray-400">{{ meter.label }}</span>
+            <span :class="meter.color">{{ meter.value }}%</span>
+          </div>
+          <div class="h-[2px] w-full bg-gray-200 dark:bg-gray-800 rounded-full overflow-hidden">
+            <div class="h-full rounded-full" :class="meter.bar" :style="{ width: meter.value + '%' }"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 访问统计 -->
+      <div class="mt-6 px-4 py-3 bg-white/50 dark:bg-gray-800/40 rounded-2xl border border-white/40 dark:border-gray-700/40">
+        <div class="flex items-center justify-between text-[10px] text-gray-500 dark:text-gray-400 uppercase font-mono mb-2">
+          <span>Web Traffic</span>
+          <span class="w-3.5 h-3.5 text-emerald-500" v-html="icon('chart-line')"></span>
+        </div>
+        <div class="flex flex-col gap-1">
+          <div class="flex justify-between items-center">
+            <span class="text-[11px] text-gray-500 dark:text-gray-400">本站访客数</span>
+            <span id="busuanzi_value_site_uv" class="text-xs font-bold text-emerald-500 font-mono tabular-nums">—</span>
+          </div>
+          <div class="flex justify-between items-center">
+            <span class="text-[11px] text-gray-500 dark:text-gray-400">本站访问量</span>
+            <span id="busuanzi_value_site_pv" class="text-xs font-bold text-blue-400 font-mono tabular-nums">—</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-auto pt-6"></div>
+
+      <!-- 本页停留时长 + 社交 -->
+      <div class="pt-4 border-t border-gray-200/70 dark:border-gray-800">
+        <div class="text-center mb-4" title="本次停留时长">
+          <span class="text-[9px] font-mono text-gray-400 uppercase">本次停留 </span>
+          <span class="text-[9px] font-mono text-emerald-600 dark:text-emerald-400 tabular-nums">{{ runtime }}</span>
+        </div>
+
+        <div class="flex justify-start gap-5 mb-5 px-1">
+          <a v-for="social in socialLinks" :key="social.icon"
+             :href="social.href"
+             :aria-label="social.label"
+             :title="social.label"
+             :target="social.href.startsWith('http') ? '_blank' : null"
+             :rel="social.href.startsWith('http') ? 'noopener noreferrer' : null"
+             class="w-5 h-5 text-gray-400 hover:text-emerald-500 transition-colors">
+            <span class="block w-5 h-5" v-html="icon(social.icon)"></span>
+          </a>
+        </div>
+
+        <button @click="toggleTheme"
+                :aria-label="isDark ? '切换到浅色模式' : '切换到深色模式'"
+                class="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-white/60 dark:bg-gray-800/60 text-sm font-medium border border-gray-200/60 dark:border-gray-700/60 hover:border-emerald-500/40 transition-colors">
+          <span class="w-4 h-4" :class="isDark ? 'text-yellow-400' : 'text-blue-500'"
+                v-html="icon(isDark ? 'sun' : 'moon')"></span>
+          <span>{{ isDark ? '浅色模式' : '深色模式' }}</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 移动端抽屉遮罩 -->
+  <div v-if="sidebarOpen" @click="sidebarOpen = false"
+       class="fixed inset-0 bg-black/40 backdrop-blur-sm z-40 md:hidden"
+       aria-hidden="true"></div>
+
+  <!-- ==========================================================
+       5. 主内容
+       关键修复：原来这里嵌套了两个 <main>，外层 h-screen overflow-y-auto、
+       内层 min-h-screen，滚动容器互相冲突，导致切页回到顶部失效、
+       移动端地址栏收放时内容被截断。
+       现在全站只有 <body> 一个滚动容器，最简单也最不容易出 bug。
+       ========================================================== -->
+  <div class="relative z-20 min-h-screen flex flex-col md:pl-64">
+    <main id="main" class="flex-1 pt-14 md:pt-0">
+      <transition name="fade" mode="out-in">
+
+        <!-- ---------- 关于我 ---------- -->
+        <div v-if="currentPage === 'about'" key="about" class="max-w-3xl mx-auto py-12 md:py-20 px-6">
+
+          <h1 class="text-4xl font-bold prose-text mb-6">{{ about.title }}</h1>
+          <div class="w-12 h-1 bg-emerald-500 rounded-full mb-10"></div>
+
+          <div class="space-y-6 stagger-in">
+            <template v-for="(block, i) in about.paragraphs" :key="i">
+              <h2 v-if="block.type === 'heading'" class="text-2xl md:text-3xl font-bold prose-text pt-6">
+                {{ block.value }}
+              </h2>
+
+              <p v-else-if="block.type === 'text'"
+                 class="prose-text text-base md:text-lg text-gray-800 dark:text-gray-200 leading-relaxed">
+                {{ block.value }}
+              </p>
+
+              <div v-else-if="block.type === 'gallery'"
+                   class="grid gap-5 py-2"
+                   :class="block.images.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'">
+                <figure v-for="img in block.images" :key="img.src"
+                        class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded-lg border border-gray-200/70 dark:border-gray-700"
+                        :style="{ transform: 'rotate(' + img.rotate + 'deg)' }">
+                  <button type="button"
+                          class="block w-full overflow-hidden rounded cursor-zoom-in"
+                          @click="openLightbox(block.images, img.src)"
+                          :aria-label="'放大查看 ' + img.caption">
+                    <img :src="img.src" :alt="img.caption"
+                         :width="img.w" :height="img.h"
+                         loading="lazy" decoding="async"
+                         class="w-full h-52 object-cover bg-gray-100 dark:bg-gray-700 transition-transform duration-500 hover:scale-105">
+                  </button>
+                  <figcaption class="text-[10px] text-gray-400 mt-2 text-center tracking-widest uppercase">
+                    {{ img.caption }}
+                  </figcaption>
+                </figure>
+              </div>
+            </template>
+          </div>
+
+          <!-- 标签 & 技能 -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-16">
+            <section class="p-6 rounded-2xl bg-white/60 dark:bg-gray-900/60 glass-panel border border-white/40 dark:border-gray-800">
+              <h2 class="text-xs font-mono text-gray-400 uppercase tracking-widest mb-4">Tags</h2>
+              <div class="flex flex-wrap gap-2">
+                <span v-for="tag in personalInfo.tags" :key="tag"
+                      class="px-3 py-1 bg-white/70 dark:bg-gray-800/70 text-xs rounded-full border border-gray-200/50 dark:border-gray-700/50">
+                  #{{ tag }}
+                </span>
+              </div>
+            </section>
+
+            <section class="p-6 rounded-2xl bg-white/60 dark:bg-gray-900/60 glass-panel border border-white/40 dark:border-gray-800">
+              <h2 class="text-xs font-mono text-gray-400 uppercase tracking-widest mb-4">Skills</h2>
+              <div class="grid grid-cols-2 gap-3">
+                <div v-for="skill in skills" :key="skill.name" class="flex items-center gap-2 text-sm">
+                  <span class="w-4 h-4 flex-shrink-0" :class="skill.color" v-html="icon(skill.icon)"></span>
+                  <span>{{ skill.name }}</span>
                 </div>
-            </aside>
+              </div>
+            </section>
+          </div>
+        </div>
 
-            <!-- 移动端遮罩 -->
-            <div v-if="sidebarOpen" @click="sidebarOpen = false" class="fixed inset-0 bg-black/20 backdrop-blur-sm z-40 md:hidden"></div>
+        <!-- ---------- 心流 / 历程 ---------- -->
+        <div v-else-if="currentPage === 'journey'" key="journey" class="max-w-3xl mx-auto py-12 md:py-20 px-6">
+          <h1 class="text-4xl font-bold prose-text mb-12">过去与未来</h1>
 
-            <!-- 主内容区域 Main Content -->
-            <main class="flex-1 h-screen overflow-y-auto relative">
-            <main class="flex-1 min-h-screen relative">
-                <transition name="fade" mode="out-in">
-                    <!-- 首页 / 关于我 -->
-                    <div v-if="currentPage === 'about'" class="max-w-3xl mx-auto py-16 px-6 md:py-24 animate-fade-in" key="about">
-                        <div class="mb-12">
-                            <h1 class="text-4xl font-bold font-serif mb-6">我是谁?</h1>
-                            <div class="w-12 h-1 bg-emerald-500 rounded-full mb-8"></div>
-                            <div class="prose-text text-lg text-gray-800 dark:text-gray-100 leading-relaxed space-y-6 stagger-in">
-                                <p>我是Leafer,生理性别男，心理性别男</p>
-                                <p>05年大专生，半拉工科人，软工牛马，也许在"努力"转本,intp-a(?)。qq:2556205521(请注明原因~)。</p>
-                                <h1 class="text-4xl font-bold font-serif mb-6">喜欢的东西？</h1>
-                                <p>没有什么爱好，至少目前实在想不出什么爱好。</p>
-                                <p>有一台自己亲手拼成的台式，没有RGB灯带没有高端配件，完全的廉政机箱(笑)。</p>
-                                <div class="py-8 grid grid-cols-1 sm:grid-cols-2 gap-4 relative">
-                                        
-                                        <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform -rotate-2">
-                                            <div class="overflow-hidden rounded">
-                                                <img src="me/case1.jpg" alt="[机箱图一]" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700" 
-                                                     onerror="this.parentElement.innerHTML='<div class=\'w-full h-56 flex items-center justify-center text-gray-400 text-xs italic\'>[机箱展示图片 1]</div>'">
-                                            </div>
-                                            <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">MY PC . 01</p>
-                                        </div>
-                                      
-                                        <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform rotate-3 sm:-translate-y-4">
-                                            <div class="overflow-hidden rounded">
-                                                <img src="me/case2.jpg" alt="[机箱图二]" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700" 
-                                                     onerror="this.parentElement.innerHTML='<div class=\'w-full h-56 flex items-center justify-center text-gray-400 text-xs italic\'>[机箱展示图片 2]</div>'">
-                                            </div>
-                                            <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">MY PC . 02</p>
-                                        </div>
-                                    </div>
-                                <p>有时也会玩点小游戏，但实际电子ed，目前肉鸽优先，以撒1000小时小登，尖塔入坑中。沙盒其次，minecraft，泰拉瑞亚都有接触;也是淡坑音游壬，maimaidx w54，musedush，osu等等。</p>
-                                <p>fps老薯条，市面上较火的fps都玩过，战地系列涉及较多，也是专业载具狗，kd维持在3左右，愿意带带薯条也是可以的</p>
-                                                   <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform -rotate-1">
-                                <div class="overflow-hidden rounded">
-                                <img src="me/mai1.jpg" alt="我的生活" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700">
-                                </div>
-                                <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">MAI . 01</p>
-                                </div>
-                                <p>二游玩的不多，但是是月记结晶粉,入坑边巴后了解了月记三部曲，有时候会改点vrc月记小模型(技术力极低)。</p>
-                                <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform -rotate-1">
-                                <div class="overflow-hidden rounded">
-                                <img src="me/yj1.jpg" alt="projectmoon" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700">
-                                </div>
-                                <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">projectmoon . 01</p>
-                                </div>
-                                <p>挺爱摄影，尤其风景照，被单反的价格劝退只能用手机拍点全损照片，摄影技术较烂勿喷。</p>
-                                <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform -rotate-1">
-                                <div class="overflow-hidden rounded">
-                                <img src="assets/pic1.jpg" alt="projectmoon" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700">
-                                </div>
-                                <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">PIC . 01</p>
-                                </div>
-                                  <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform -rotate-1">
-                                <div class="overflow-hidden rounded">
-                                <img src="assets/pic3.jpg" alt="projectmoon" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700">
-                                </div>
-                                <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">PIC . 02</p>
-                                </div>
-                                <div class="photo-card p-2 bg-white dark:bg-gray-800 shadow-xl rounded border dark:border-gray-700 transform -rotate-1">
-                                <div class="overflow-hidden rounded">
-                                <img src="assets/Nanjing2.jpg" alt="projectmoon" class="w-full h-56 object-cover bg-gray-100 dark:bg-gray-700">
-                                </div>
-                               
-                                <p class="text-[10px] text-gray-400 mt-2 text-center font-sans tracking-widest">PIC . 03</p>
-                                </div>
-                                <p>高强度网络冲浪，古今往来热门梗基本都知道，唐梗新梗都不落，完全无雷。嘴较毒蛇，心较腹黑，道德感上下横跳。</p>
-                                <p>情绪极其稳定，情商其实挺高但一般不展露，对人生意义和自我情绪的研究较多，对一些社会现象也有些许了解,有想法和见解随时和我交流。</p>
-                               
-                                <P>歌单内充满了日本流行曲，主推amazarashi，偶尔听术曲音游曲，早期的国内金曲也有涉猎，</P>
-                                <p>"你能找到这里，说明你是从VRC看到了我的博客链接~这只是个github提供的静态网页部署界面，也许我将在以后拥有服务器之后推出评论功能。这是个游戏，对一些人来说也是第二人生。"
-                                    
-                                </p>
-                            
-                            </div>
-                        </div>
-                        
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mt-16">
-                            <div class="p-6 rounded-2xl bg-white/50 dark:bg-gray-900/50 glass-panel border border-white/20 dark:border-gray-800 shadow-sm">
-                                
-                                <div class="flex flex-wrap gap-2">
-                                    <span v-for="tag in personalInfo.tags" :key="tag" class="px-3 py-1 bg-white/50 dark:bg-gray-800/50 text-xs rounded-full border border-gray-200/30 dark:border-gray-700/30">#{{ tag }}</span>
-                                </div>
-                            </div>
-                            <div class="p-6 rounded-2xl bg-white/50 dark:bg-gray-900/50 glass-panel border border-white/20 dark:border-gray-800 shadow-sm">
-                                
-                                <div class="grid grid-cols-2 gap-2">
-                                    <div v-for="skill in skills" :key="skill.name" class="flex items-center text-sm">
-                                        <i :class="[skill.icon, skill.color, 'mr-2']"></i> {{ skill.name }}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+          <ol class="relative border-l-2 border-emerald-500/30 dark:border-emerald-500/20 space-y-12 ml-2">
+            <li v-for="(item, index) in journey" :key="index" class="relative pl-8">
+              <span class="absolute -left-[11px] top-1 w-5 h-5 rounded-full bg-white dark:bg-gray-900 border-4 border-emerald-500 shadow-sm"></span>
+              <time class="text-xs font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/40 px-2 py-1 rounded">
+                {{ item.year }}
+              </time>
+              <h2 class="text-xl font-bold mt-3 mb-2">{{ item.title }}</h2>
+              <p class="text-gray-700 dark:text-gray-300 prose-text">{{ item.content }}</p>
+            </li>
+          </ol>
+        </div>
 
-                    <!-- 历程 / Journey -->
-                    <div v-else-if="currentPage === 'journey'" class="max-w-3xl mx-auto py-16 px-6 md:py-24" key="journey">
-                        <h1 class="text-4xl font-bold font-serif mb-12">过去与未来</h1>
-                        <div class="relative border-l-2 border-emerald-500/30 dark:border-emerald-500/20 space-y-12 ml-4">
-                            <div v-for="(item, index) in journey" :key="index" class="relative pl-8">
-                                <div class="absolute -left-[11px] top-1 w-5 h-5 rounded-full bg-white dark:bg-gray-900 border-4 border-emerald-500 z-10 shadow-sm"></div>
-                                <span class="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-1 rounded">{{ item.year }}</span>
-                                <h3 class="text-xl font-bold mt-3 mb-2 dark:text-white">{{ item.title }}</h3>
-                                <p class="text-gray-700 dark:text-gray-300 prose-text leading-relaxed">{{ item.content }}</p>
-                            </div>
-                        </div>
-                    </div>
+        <!-- ---------- 帖子 ---------- -->
+        <div v-else-if="currentPage === 'thoughts'" key="thoughts" class="max-w-3xl mx-auto py-12 md:py-20 px-6">
+          <h1 class="text-4xl font-bold prose-text mb-12">我的帖子</h1>
 
-                    <!-- 随笔 / Thoughts -->
-                   <div v-else-if="currentPage === 'thoughts'" class="max-w-3xl mx-auto py-16 px-6 md:py-24" key="thoughts">
-    <h1 class="text-4xl font-bold font-serif mb-12">我的帖子</h1>
-    <div class="space-y-12">
-        <article v-for="(article, index) in articles" :key="index" 
-                 class="group p-6 rounded-3xl hover:bg-white/40 dark:hover:bg-gray-900/40 transition-all duration-500 border border-transparent hover:border-white/20 dark:hover:border-gray-800">
-            
-            <div class="text-xs text-gray-500 dark:text-gray-400 mb-2 font-mono">{{ article.date }}</div>
-            <h2 class="text-2xl font-bold mb-4 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors dark:text-gray-100">
+          <div class="space-y-10">
+            <article v-for="(article, index) in articles" :key="index"
+                     class="group p-5 md:p-6 rounded-3xl transition-all duration-500 glass-panel bg-white/45 dark:bg-gray-900/50 border border-white/50 dark:border-gray-800 shadow-sm hover:bg-white/70 dark:hover:bg-gray-900/75 hover:shadow-lg">
+
+              <time class="text-xs text-gray-600 dark:text-gray-400 font-mono">{{ article.date }}</time>
+
+              <h2 class="text-2xl font-bold mt-1 mb-4 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
                 {{ article.title }}
-            </h2>
-            
-            <div class="text-gray-700 dark:text-gray-300 prose-text leading-relaxed mb-4">
-                <p v-if="expandedIndex !== index" class="line-clamp-3">
-                    {{ article.summary }}
-                </p>
-                
-                <div v-else>
-                    <div class="prose-text text-gray-800 dark:text-gray-200 leading-relaxed whitespace-pre-wrap mb-8">
-                        {{ article.content }}
-                    </div>
+              </h2>
 
-                    <div v-if="article.images && article.images.length > 0" 
-                         class="grid grid-cols-1 md:grid-cols-2 gap-4 my-8">
-                        <div v-for="(img, imgIdx) in article.images" :key="imgIdx" 
-     class="group relative overflow-hidden rounded-2xl border border-gray-100 dark:border-gray-800 shadow-sm bg-gray-50 dark:bg-gray-900/50">
-    <img :src="img" 
-         class="w-full h-64 object-cover transition-transform duration-700 group-hover:scale-110 cursor-zoom-in"
-         @click.stop="previewImage = img"> </div>
-                    </div>
+              <p v-if="expandedIndex !== index"
+                 class="text-gray-700 dark:text-gray-300 prose-text line-clamp-3">
+                {{ article.summary }}
+              </p>
+
+              <div v-else>
+                <p class="prose-text text-gray-800 dark:text-gray-200 whitespace-pre-wrap">{{ article.content }}</p>
+
+                <div v-if="article.images && article.images.length"
+                     class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
+                  <button v-for="img in article.images" :key="img.src"
+                          type="button"
+                          class="group/img relative overflow-hidden rounded-2xl border border-gray-200/70 dark:border-gray-800 bg-gray-100 dark:bg-gray-900/60 cursor-zoom-in block w-full"
+                          @click="openLightbox(article.images, img.src)"
+                          aria-label="放大查看图片">
+                    <img :src="img.src" :alt="article.title + ' 的配图'"
+                         :width="img.w" :height="img.h"
+                         loading="lazy" decoding="async"
+                         class="w-full h-64 object-cover transition-transform duration-700 group-hover/img:scale-105">
+                  </button>
                 </div>
-            </div>
+              </div>
 
-            <button @click="toggleArticle(index)" class="text-sm font-bold text-emerald-600 dark:text-emerald-400 flex items-center">
+              <button @click="toggleArticle(index)"
+                      class="mt-5 text-sm font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-2"
+                      :aria-expanded="expandedIndex === index ? 'true' : 'false'">
                 {{ expandedIndex === index ? '收起全文' : '阅读全文' }}
-                <i :class="['fas ml-2 text-xs transition-transform', expandedIndex === index ? 'fa-chevron-up' : 'fa-arrow-right group-hover:translate-x-1']"></i>
-            </button>
-        </article>
-    </div>
-</div>
-                </transition>
-
-                <!-- 版权页脚 -->
-                <footer class="max-w-3xl mx-auto py-12 px-6 text-center text-xs text-gray-500 dark:text-gray-400">
-                    <p>© {{ new Date().getFullYear() }} By Leafer</p>
-                </footer>
-            </main>
+                <span class="w-3 h-3 transition-transform duration-300"
+                      :class="expandedIndex === index ? '' : 'group-hover:translate-x-1'"
+                      v-html="icon(expandedIndex === index ? 'chevron-up' : 'arrow-right')"></span>
+              </button>
+            </article>
+          </div>
         </div>
-        <transition name="fade">
-    <div v-if="previewImage" 
-         @click="previewImage = null" 
-         class="fixed inset-0 z-[999] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 cursor-zoom-out animate-fade-in">
-        <img :src="previewImage" 
-             class="max-w-full max-h-full rounded-lg shadow-2xl transition-transform duration-300" 
-             alt="预览图">
-        
-        <div class="absolute top-5 right-5 text-white/50 text-sm font-mono">Click anywhere to close</div>
-    </div>
-</transition>
-<div class="fixed bottom-6 right-6 z-[60] flex flex-col items-end gap-3 group">
-            <transition name="fade">
-                <div v-if="musicOpen" 
-                     class="p-4 bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl rounded-3xl border border-emerald-500/20 shadow-2xl flex items-center gap-4 w-72 animate-fade-in">
-                    <div class="relative flex-shrink-0">
-                        <img :src="currentTrack.cover" 
-                             :class="['w-16 h-16 rounded-full object-cover border-2 border-emerald-500/20 shadow-lg', isPlaying ? 'animate-spin-slow' : '']">
-                        <div class="absolute inset-0 flex items-center justify-center">
-                            <div class="w-3 h-3 bg-gray-900 rounded-full border-2 border-white/20"></div>
-                        </div>
-                    </div>
-                    <div class="flex-1 min-w-0">
-                        <div class="text-sm font-bold truncate dark:text-white">{{ currentTrack.title }}</div>
-                        <div class="text-[10px] text-gray-500 font-mono mb-2 truncate">{{ currentTrack.artist }}</div>
-                        <div class="flex items-center gap-4 text-emerald-500">
-                            <button @click="prevTrack" class="hover:scale-120 transition-transform"><i class="fas fa-step-backward"></i></button>
-                            <button @click="togglePlay" class="w-8 h-8 flex items-center justify-center bg-emerald-500 text-white rounded-full hover:scale-110 transition-transform">
-                                <i :class="isPlaying ? 'fas fa-pause' : 'fas fa-play'"></i>
-                            </button>
-                            <button @click="nextTrack" class="hover:scale-120 transition-transform"><i class="fas fa-step-forward"></i></button>
-                        </div>
-                    </div>
-                </div>
-            </transition>
 
-            <button @click="musicOpen = !musicOpen" 
-                    class="w-14 h-14 bg-emerald-500 text-white rounded-full shadow-lg shadow-emerald-500/40 flex items-center justify-center hover:scale-110 transition-transform active:scale-95">
-                <i class="fas fa-music text-xl" :class="{'animate-pulse': isPlaying}"></i>
-            </button>
-            
-            <audio ref="audioRef" :src="currentTrack.url" @ended="nextTrack" @play="isPlaying = true" @pause="isPlaying = false"></audio>
+      </transition>
+
+      <footer class="max-w-3xl mx-auto py-12 px-6 text-center text-xs text-gray-500 dark:text-gray-400">
+        <p>© {{ currentYear }} By Leafer</p>
+        <p class="mt-2 text-[10px] text-gray-400 dark:text-gray-600">
+          本站图片与文字均为个人原创记录，转载请注明出处
+        </p>
+      </footer>
+    </main>
+  </div>
+
+  <!-- ==========================================================
+       6. 音乐播放器
+       新增：进度条（可拖动定位）、音量控制、播放时间。
+       原版只有三个按钮，不能调音量也不能快进，音量固定 100%。
+       ========================================================== -->
+  <div v-if="track" class="fixed bottom-6 right-6 z-[60] flex flex-col items-end gap-3">
+    <transition name="fade">
+      <div v-if="musicOpen"
+           class="p-4 bg-white/92 dark:bg-gray-900/92 backdrop-blur-xl rounded-3xl border border-emerald-500/20 shadow-2xl w-72">
+
+        <div class="flex items-center gap-4">
+          <div class="relative flex-shrink-0">
+            <img :src="track.cover" :alt="track.title + ' 封面'"
+                 width="256" height="256" loading="lazy" decoding="async"
+                 class="w-16 h-16 rounded-full object-cover border-2 border-emerald-500/20 shadow-lg"
+                 :class="isPlaying ? 'animate-spin-slow' : ''">
+            <span class="absolute inset-0 flex items-center justify-center">
+              <span class="w-3 h-3 bg-gray-900 dark:bg-gray-700 rounded-full border-2 border-white/20"></span>
+            </span>
+          </div>
+
+          <div class="flex-1 min-w-0">
+            <div class="text-sm font-bold truncate">{{ track.title }}</div>
+            <div class="text-[10px] text-gray-500 dark:text-gray-400 font-mono truncate">{{ track.artist }}</div>
+          </div>
         </div>
+
+        <!-- 进度条 -->
+        <div class="mt-3">
+          <input type="range" min="0" :max="duration || 0" step="0.1"
+                 :value="currentTime"
+                 @input="seek($event.target.value)"
+                 aria-label="播放进度"
+                 class="w-full h-1 accent-emerald-500 cursor-pointer">
+          <div class="flex justify-between text-[9px] font-mono text-gray-400 tabular-nums mt-0.5">
+            <span>{{ formatTime(currentTime) }}</span>
+            <span>{{ formatTime(duration) }}</span>
+          </div>
+        </div>
+
+        <!-- 控制按钮 -->
+        <div class="flex items-center gap-4 mt-2 text-emerald-500">
+          <button @click="prevTrack" aria-label="上一首" class="hover:scale-110 transition-transform">
+            <span class="block w-4 h-4" v-html="icon('backward')"></span>
+          </button>
+          <button @click="togglePlay"
+                  :aria-label="isPlaying ? '暂停' : '播放'"
+                  class="w-9 h-9 flex items-center justify-center bg-emerald-500 text-white rounded-full hover:scale-110 transition-transform active:scale-95">
+            <span class="block w-3.5 h-3.5" v-html="icon(isPlaying ? 'pause' : 'play')"></span>
+          </button>
+          <button @click="nextTrack" aria-label="下一首" class="hover:scale-110 transition-transform">
+            <span class="block w-4 h-4" v-html="icon('forward')"></span>
+          </button>
+
+          <span class="w-4 h-4 text-gray-400 dark:text-gray-500 ml-auto" v-html="icon('volume')"></span>
+          <input type="range" min="0" max="1" step="0.01"
+                 :value="volume"
+                 @input="setVolume($event.target.value)"
+                 aria-label="音量"
+                 class="w-16 h-1 accent-emerald-500 cursor-pointer">
+        </div>
+      </div>
+    </transition>
+
+    <button @click="musicOpen = !musicOpen"
+            :aria-label="musicOpen ? '收起播放器' : '展开播放器'"
+            :aria-expanded="musicOpen ? 'true' : 'false'"
+            class="w-14 h-14 bg-emerald-500 text-white rounded-full shadow-lg shadow-emerald-500/40 flex items-center justify-center hover:scale-110 transition-transform active:scale-95">
+      <span class="block w-5 h-5" :class="{ 'animate-pulse': isPlaying }" v-html="icon('music')"></span>
+    </button>
+
+    <!-- preload="none"：不点播放就完全不下载音频。
+         原来没设 preload，浏览器会偷偷预载整个 mp3（12MB + 10.8MB）。 -->
+    <audio ref="audioRef"
+           :src="track.url"
+           preload="none"
+           @ended="nextTrack"
+           @play="isPlaying = true"
+           @pause="isPlaying = false"
+           @timeupdate="onTimeUpdate"
+           @loadedmetadata="onLoadedMetadata"
+           @error="onAudioError"></audio>
+  </div>
+
+  <!-- ==========================================================
+       7. 图片灯箱
+       新增 ESC / ← → 键盘操作，打开时锁定背景滚动，读屏可识别为对话框。
+       ========================================================== -->
+  <transition name="fade">
+    <div v-if="lightbox.open"
+         @click.self="closeLightbox"
+         role="dialog"
+         aria-modal="true"
+         aria-label="图片预览"
+         class="fixed inset-0 z-[999] bg-black/92 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+      <img :src="lightbox.src" alt="放大的图片"
+           class="max-w-full max-h-[88vh] rounded-lg shadow-2xl object-contain">
+
+      <button @click="closeLightbox" aria-label="关闭预览"
+              class="absolute top-5 right-5 w-8 h-8 text-white/60 hover:text-white transition-colors">
+        <span class="block w-8 h-8" v-html="icon('times')"></span>
+      </button>
+
+      <template v-if="lightbox.list.length > 1">
+        <button @click.stop="stepLightbox(-1)" aria-label="上一张"
+                class="absolute left-3 md:left-8 w-8 h-8 text-white/60 hover:text-white transition-colors">
+          <span class="block w-8 h-8" v-html="icon('backward')"></span>
+        </button>
+        <button @click.stop="stepLightbox(1)" aria-label="下一张"
+                class="absolute right-3 md:right-8 w-8 h-8 text-white/60 hover:text-white transition-colors">
+          <span class="block w-8 h-8" v-html="icon('forward')"></span>
+        </button>
+        <div class="absolute bottom-6 left-1/2 -translate-x-1/2 text-white/50 text-xs font-mono">
+          {{ lightbox.index + 1 }} / {{ lightbox.list.length }}
+        </div>
+      </template>
+
+      <div class="absolute bottom-6 right-5 text-white/35 text-[10px] font-mono hidden md:block">
+        ESC 关闭 · ← → 切换
+      </div>
     </div>
+  </transition>
+
+  <!-- 回到顶部 -->
+  <transition name="fade">
+    <button v-if="showToTop"
+            @click="scrollToTop"
+            aria-label="回到顶部"
+            class="fixed bottom-6 left-6 z-[60] w-11 h-11 rounded-full bg-white/85 dark:bg-gray-800/85 backdrop-blur border border-gray-200/60 dark:border-gray-700/60 text-gray-600 dark:text-gray-300 shadow-lg hover:text-emerald-500 transition-colors flex items-center justify-center">
+      <span class="block w-4 h-4 rotate-[-90deg]" v-html="icon('arrow-right')"></span>
+    </button>
+  </transition>
 </div>
+
+<!-- 数据与图标。都放在 body 末尾，避免阻塞首屏渲染 -->
+<script src="data.js"></script>
+<script src="icons.js"></script>
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 
 <script>
-    const { createApp, ref, onMounted, onUnmounted,watch } = Vue;
+(function () {
+  'use strict';
 
-    createApp({
-        setup() {
-            // 1. 从 data.js 接入数据
-    const personalInfo = ref(SITE_DATA.personalInfo);
-    const backgroundImages = ref(SITE_DATA.backgroundImages);
-    const navItems = SITE_DATA.navItems;
-    const socialLinks = SITE_DATA.socialLinks;
-    const skills = SITE_DATA.skills;
-    const journey = ref(SITE_DATA.journey);
-    const articles = ref(SITE_DATA.articles);
-    const quotes = SITE_DATA.quotes;
+  var boot = document.getElementById('app');
+  if (typeof Vue === 'undefined') {
+    // CDN 挂了也要给用户一个明确提示，而不是永远空白的白屏
+    boot.innerHTML = '<div style="padding:3rem;text-align:center;font-family:system-ui,sans-serif;line-height:2">'
+      + '<h1 style="font-size:1.25rem;font-weight:700">脚本加载失败</h1>'
+      + '<p style="color:#888">Vue 运行时没能从 CDN 加载。请检查网络后刷新，或联系站主。</p></div>';
+    return;
+  }
+  if (typeof SITE_DATA === 'undefined' || typeof icon === 'undefined') {
+    boot.innerHTML = '<div style="padding:3rem;text-align:center;font-family:system-ui,sans-serif">'
+      + '<h1 style="font-size:1.25rem;font-weight:700">站点数据读取失败</h1>'
+      + '<p style="color:#888">data.js 或 icons.js 没有正确加载。</p></div>';
+    return;
+  }
 
-    const playlist = SITE_DATA.playlist || [];
-    const musicOpen = ref(false);
-    const isPlaying = ref(false);
-    const currentIndex = ref(0);
-    const audioRef = ref(null);
-    const currentTrack = Vue.computed(() => playlist[currentIndex.value] || {});
+  var createApp = Vue.createApp;
+  var ref = Vue.ref;
+  var computed = Vue.computed;
+  var onMounted = Vue.onMounted;
+  var onUnmounted = Vue.onUnmounted;
 
-    // 2. 响应式状态定义
-    const runtime = ref('00:00:00');
-    const ripples = ref([]);
-    const dots = ref([]);
-    const isDark = ref(false);
-    const sidebarOpen = ref(false);
-    const showIntro = ref(true);
-    const showIntroScreen = ref(true);
-    const currentPage = ref('about');
-    const expandedIndex = ref(null); 
-    const previewImage = ref(null); // 预览图片变量
-    const currentBgIndex = ref(0);
-    let bgInterval = null;
+  createApp({
+    setup: function () {
+      /* ---------------- 数据 ---------------- */
+      var D = SITE_DATA;
+      var personalInfo = ref(D.personalInfo);
+      var backgroundImages = ref(D.backgroundImages || []);
+      var navItems = D.navItems || [];
+      var socialLinks = D.socialLinks || [];
+      var skills = D.skills || [];
+      var journey = D.journey || [];
+      var articles = ref(D.articles || []);
+      var quotes = D.quotes || ['你好'];
+      var about = D.about || { title: '关于我', paragraphs: [] };
+      var intro = D.intro || { title: "Leafer's Garden", hint: '点击进入', englishHint: 'CLICK TO ENTER' };
+      var playlist = D.playlist || [];
 
-    // 3. 随机初始值
-    const randomStatus = ref(personalInfo.value.statusList[Math.floor(Math.random() * personalInfo.value.statusList.length)]);
-    const currentQuote = ref(quotes[Math.floor(Math.random() * quotes.length)]);
+      var backgroundBaseColor = D.backgroundBaseColor || '#0b0f14';
+      var backgroundInterval = D.backgroundInterval || 8000;
 
-   const togglePlay = () => {
-    if (!audioRef.value) return;
-    
-    // 如果 src 为空或者加载失败，尝试重新加载
-    if (!audioRef.value.src || audioRef.value.error) {
-        audioRef.value.load();
-    }
+      // 当前应该显示哪张背景。配合 v-if 使用，DOM 里永远只有一张背景图。
+      var currentBackground = computed(function () {
+        return backgroundImages.value[currentBgIndex.value] || '';
+      });
 
-    if (audioRef.value.paused) {
-        const playPromise = audioRef.value.play();
-        if (playPromise !== undefined) {
-            playPromise.then(() => {
-                isPlaying.value = true;
-            }).catch(err => {
-                console.error("播放失败:", err);
+      /**
+       * 预取下一帧背景。
+       * 用 Image() 主动发起请求，这样即使该元素还没挂载到 DOM，
+       * 图片也已经进了浏览器缓存，轮播切换时是瞬间显示而非"边下边淡入"。
+       * 代价极低：优化后的背景图每张只有 39~159 KB。
+       */
+      function preloadNextBackground() {
+        var list = backgroundImages.value;
+        if (list.length < 2) return;
+        var next = list[(currentBgIndex.value + 1) % list.length];
+        if (next) { var img = new Image(); img.src = next; }
+      }
+
+      var currentYear = new Date().getFullYear();
+
+      /* ---------------- 界面状态 ---------------- */
+      var isDark = ref(document.documentElement.classList.contains('dark'));
+      var sidebarOpen = ref(false);
+      var showIntro = ref(true);
+      var showIntroScreen = ref(true);
+      var currentPage = ref('about');
+      var expandedIndex = ref(null);
+      var currentBgIndex = ref(0);
+      var runtime = ref('00:00');
+      var showToTop = ref(false);
+
+      var randomStatus = ref(personalInfo.value.statusList[
+        Math.floor(Math.random() * personalInfo.value.statusList.length)
+      ]);
+      var currentQuote = ref(quotes[Math.floor(Math.random() * quotes.length)]);
+
+      /* ---------------- 侧栏指标（原来是写死的 HTML，现在是数据） ---------------- */
+      var meters = [
+        { label: '脑啡肽', value: 82, color: 'text-emerald-500', bar: 'bg-emerald-500 animate-pulse' },
+        { label: 'san值', value: 95, color: 'text-blue-400', bar: 'bg-blue-400' }
+      ];
+
+      /* ---------------- 音乐 ---------------- */
+      var audioRef = ref(null);
+      var musicOpen = ref(false);
+      var isPlaying = ref(false);
+      var currentIndex = ref(0);
+      var currentTime = ref(0);
+      var duration = ref(0);
+      var volume = ref(0.7);
+
+      // playlist 为空时 track 为 null，整个播放器会被 v-if 隐藏，
+      // 避免原版那种 currentTrack = {} 后访问 .cover 直接报错的情况
+      var track = computed(function () {
+        return playlist.length ? playlist[currentIndex.value] : null;
+      });
+
+      function formatTime(sec) {
+        if (!sec || !isFinite(sec)) return '0:00';
+        var m = Math.floor(sec / 60);
+        var s = Math.floor(sec % 60);
+        return m + ':' + (s < 10 ? '0' : '') + s;
+      }
+
+      function togglePlay() {
+        var a = audioRef.value;
+        if (!a) return;
+        if (a.paused) {
+          var p = a.play();
+          if (p && p.catch) {
+            p.catch(function (err) {
+              console.warn('播放失败:', err && err.name);
+              isPlaying.value = false;
             });
-        }
-    } else {
-        audioRef.value.pause();
-        isPlaying.value = false;
-    }
-};
-
-const nextTrack = () => {
-    currentIndex.value = (currentIndex.value + 1) % playlist.length;
-    // 关键：切换 src 后需要等待 DOM 更新再播放
-    Vue.nextTick(() => {
-        audioRef.value.load(); // 强制重新加载新资源
-        audioRef.value.play().catch(() => {
-            isPlaying.value = false; // 捕获浏览器拦截
-        });
-    });
-};
-
-const prevTrack = () => {
-    currentIndex.value = (currentIndex.value - 1 + playlist.length) % playlist.length;
-    Vue.nextTick(() => {
-        audioRef.value.load();
-        audioRef.value.play().catch(() => {
-            isPlaying.value = false;
-        });
-    });
-};
-
-    // 4. 功能函数
-    const handleGlobalClick = (e) => {
-        const id = Date.now();
-        ripples.value.push({ id, x: e.clientX, y: e.clientY });
-        setTimeout(() => ripples.value = ripples.value.filter(r => r.id !== id), 600);
-    };
-
-    const handleGlobalMouseMove = (e) => {
-        if (Math.random() > 0.8) {
-            const id = Math.random();
-            dots.value.push({ id, x: e.clientX, y: e.clientY });
-            setTimeout(() => dots.value = dots.value.filter(d => d.id !== id), 500);
-        }
-    };
-
-    const toggleArticle = (index) => {
-        expandedIndex.value = (expandedIndex.value === index) ? null : index;
-    };
-
-    const changePage = (pageId) => {
-        currentPage.value = pageId;
-        sidebarOpen.value = false;
-        setTimeout(() => {
-            const main = document.querySelector('main');
-            if (main) main.scrollTo({ top: 0, behavior: 'smooth' });
-        }, 100);
-    };
-
-    const toggleTheme = () => {
-        isDark.value = !isDark.value;
-        if (isDark.value) {
-            document.documentElement.classList.add('dark');
+          }
         } else {
-            document.documentElement.classList.remove('dark');
+          a.pause();
         }
-    };
+      }
 
-    const startEverything = () => {
-    // 1. 立即尝试播放音乐 (这是浏览器允许播放的唯一窗口期)
-    if (audioRef.value) {
-        audioRef.value.play().then(() => {
-            isPlaying.value = true;
-            musicOpen.value = true; // 让播放器展开，显示正在播放
-        }).catch(err => {
-            console.log("播放被拦截，请确保点击了屏幕:", err);
+      /**
+       * 切歌。修复原版两个问题：
+       *  1. 没有判空就调用 audioRef.value.load()，播放器未挂载时会抛异常
+       *  2. 没有重置 currentTime/duration，进度条会显示上一首的时长
+       */
+      function switchTrack(delta) {
+        if (!playlist.length) return;
+        currentIndex.value = (currentIndex.value + delta + playlist.length) % playlist.length;
+        currentTime.value = 0;
+        duration.value = 0;
+        Vue.nextTick(function () {
+          var a = audioRef.value;
+          if (!a) return;
+          a.load();
+          a.volume = volume.value;
+          var p = a.play();
+          if (p && p.catch) {
+            p.catch(function () { isPlaying.value = false; });
+          }
         });
-    }
+      }
 
-    // 2. 触发入场动画消失逻辑
-    showIntro.value = false;
-    setTimeout(() => {
-        showIntroScreen.value = false;
-    }, 1200); // 1.2秒后彻底移除遮罩
-};
+      function nextTrack() { switchTrack(1); }
+      function prevTrack() { switchTrack(-1); }
 
-    // 5. 生命周期钩子
-    onMounted(() => {
-        // 运行时间计时
-        const startTime = Date.now();
-        setInterval(() => {
-            const diff = Math.floor((Date.now() - startTime) / 1000);
-            const h = Math.floor(diff / 3600).toString().padStart(2, '0');
-            const m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
-            const s = (diff % 60).toString().padStart(2, '0');
-            runtime.value = `${h}:${m}:${s}`;
-        }, 1000);
+      function seek(value) {
+        var a = audioRef.value;
+        if (!a) return;
+        a.currentTime = Number(value);
+        currentTime.value = Number(value);
+      }
 
-        window.addEventListener('mousedown', handleGlobalClick);
-        window.addEventListener('mousemove', handleGlobalMouseMove);
-        
-        // 自动检测系统主题
-        if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            isDark.value = true;
-            document.documentElement.classList.add('dark');
+      function setVolume(value) {
+        volume.value = Number(value);
+        if (audioRef.value) audioRef.value.volume = volume.value;
+      }
+
+      function onTimeUpdate(e) { currentTime.value = e.target.currentTime; }
+      function onLoadedMetadata(e) {
+        duration.value = e.target.duration;
+        e.target.volume = volume.value;
+      }
+      function onAudioError() {
+        console.warn('音频加载失败:', track.value && track.value.url);
+        isPlaying.value = false;
+      }
+
+      /* ---------------- 灯箱 ---------------- */
+      var lightbox = ref({ open: false, src: '', list: [], index: 0 });
+
+      function openLightbox(list, src) {
+        var idx = 0;
+        for (var i = 0; i < list.length; i++) {
+          if (list[i].src === src) { idx = i; break; }
         }
+        lightbox.value = { open: true, src: src, list: list, index: idx };
+        document.body.classList.add('lightbox-open');
+        // 让键盘用户能直接按 ESC，而不是必须去点右上角
+        Vue.nextTick(function () {
+          var btn = document.querySelector('[aria-label="关闭预览"]');
+          if (btn) btn.focus();
+        });
+      }
 
-        // 启动背景轮播
-        bgInterval = setInterval(() => {
+      function closeLightbox() {
+        lightbox.value.open = false;
+        document.body.classList.remove('lightbox-open');
+      }
+
+      function stepLightbox(delta) {
+        var lb = lightbox.value;
+        if (lb.list.length < 2) return;
+        var i = (lb.index + delta + lb.list.length) % lb.list.length;
+        lb.index = i;
+        lb.src = lb.list[i].src;
+      }
+
+      function onKeydown(e) {
+        var lb = lightbox.value;
+        if (lb.open) {
+          if (e.key === 'Escape') closeLightbox();
+          else if (e.key === 'ArrowLeft') stepLightbox(-1);
+          else if (e.key === 'ArrowRight') stepLightbox(1);
+          return;
+        }
+        // 入场页支持回车/空格进入
+        if (showIntroScreen.value && (e.key === 'Enter' || e.key === ' ')) {
+          e.preventDefault();
+          startEverything();
+        }
+      }
+
+      /* ---------------- 主题 ---------------- */
+      function applyTheme(dark) {
+        isDark.value = dark;
+        document.documentElement.classList.toggle('dark', dark);
+        var m = document.querySelector('meta[name="theme-color"]');
+        if (m) m.setAttribute('content', dark ? '#0b0f14' : '#FDFBF7');
+      }
+
+      function toggleTheme() {
+        var dark = !isDark.value;
+        applyTheme(dark);
+        // 记住选择。原来只改 DOM 不落盘，刷新就丢。
+        try { localStorage.setItem('leafer-theme', dark ? 'dark' : 'light'); } catch (e) {}
+        window.__hasExplicitTheme = true;
+      }
+
+      /* ---------------- 页面切换 ---------------- */
+      function changePage(pageId) {
+        currentPage.value = pageId;
+        expandedIndex.value = null;
+        sidebarOpen.value = false;
+        // 直接滚 window。原来 querySelector('main') 选中的是那个不可滚动的外层，
+        // 所以切页后还停在上一页的滚动位置。
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      function toggleArticle(index) {
+        expandedIndex.value = (expandedIndex.value === index) ? null : index;
+      }
+
+      function scrollToTop() {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      function onScroll() {
+        showToTop.value = window.scrollY > 600;
+      }
+
+      /* ---------------- 入场 ---------------- */
+      function startEverything() {
+        var a = audioRef.value;
+        if (a) {
+          a.volume = volume.value;
+          // 手动点击是一次真实的用户手势，浏览器允许在这里播放
+          var p = a.play();
+          if (p && p.then) {
+            p.then(function () {
+              isPlaying.value = true;
+              musicOpen.value = true;
+            }).catch(function () {
+              // 被策略拦截就安静地不播，不再往控制台丢红色报错
+              isPlaying.value = false;
+            });
+          }
+        }
+        showIntro.value = false;
+        window.setTimeout(function () { showIntroScreen.value = false; }, 600);
+      }
+
+      /* ---------------- 生命周期 ---------------- */
+      var timers = [];
+      var bgInterval = null;
+      var mediaQuery = null;
+
+      onMounted(function () {
+        var startTime = Date.now();
+        timers.push(window.setInterval(function () {
+          var diff = Math.floor((Date.now() - startTime) / 1000);
+          var h = Math.floor(diff / 3600);
+          var m = Math.floor((diff % 3600) / 60);
+          var s = diff % 60;
+          runtime.value = (h > 0 ? h + ':' + String(m).padStart(2, '0') : String(m))
+            + ':' + String(s).padStart(2, '0');
+        }, 1000));
+
+        window.addEventListener('keydown', onKeydown);
+        window.addEventListener('scroll', onScroll, { passive: true });
+
+        // 用户没手动选过主题时，跟随系统实时切换
+        mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        var onSystemThemeChange = function (e) {
+          if (!window.__hasExplicitTheme) applyTheme(e.matches);
+        };
+        if (mediaQuery.addEventListener) mediaQuery.addEventListener('change', onSystemThemeChange);
+        else if (mediaQuery.addListener) mediaQuery.addListener(onSystemThemeChange);
+
+        // 背景轮播。只在标签页可见时计时，切走后就别再跑动画浪费电。
+        // 原版还在 window 上挂了 mousemove 粒子特效 —— 每次移动都 new 一个
+        // 固定定位 DOM 节点，低端机上直接掉帧，已整体移除。
+        function startBg() {
+          if (bgInterval || backgroundImages.value.length < 2) return;
+          preloadNextBackground(); // 先预取，保证第一次切换就已经在缓存里
+          bgInterval = window.setInterval(function () {
             currentBgIndex.value = (currentBgIndex.value + 1) % backgroundImages.value.length;
-        }, 5000);
+            preloadNextBackground();
+          }, backgroundInterval);
+        }
+        function stopBg() {
+          if (bgInterval) { window.clearInterval(bgInterval); bgInterval = null; }
+        }
+        startBg();
+        var onVisibility = function () {
+          if (document.hidden) stopBg(); else startBg();
+        };
+        document.addEventListener('visibilitychange', onVisibility);
+        timers.push({ stop: function () { document.removeEventListener('visibilitychange', onVisibility); } });
 
-        // 入场动画
-       
-    });
+        // 入场页自动聚焦，键盘用户可以直接回车进入
+        var introBtn = document.querySelector('[aria-label], #app button');
+        if (introBtn && introBtn.focus) introBtn.focus();
 
-    onUnmounted(() => {
-        if (bgInterval) clearInterval(bgInterval);
-        window.removeEventListener('mousedown', handleGlobalClick);
-        window.removeEventListener('mousemove', handleGlobalMouseMove);
-    });
+        // 统计脚本延迟加载：不占用首屏关键路径
+        window.setTimeout(function () {
+          var s = document.createElement('script');
+          s.async = true;
+          s.src = 'https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js';
+          document.body.appendChild(s);
+        }, 1200);
 
-    return {
-        personalInfo, backgroundImages, navItems, socialLinks, skills, journey, articles, 
-        quotes, currentQuote, randomStatus, isDark, sidebarOpen, showIntro, currentBgIndex,
-        showIntroScreen, currentPage, expandedIndex, previewImage, runtime, ripples, dots,
-        changePage, toggleTheme, toggleArticle,startEverything,
-        musicOpen, isPlaying, currentTrack, audioRef, togglePlay, nextTrack, prevTrack
-    };
-}
-    }).mount('#app');
+        onScroll();
+      });
+
+      onUnmounted(function () {
+        if (bgInterval) window.clearInterval(bgInterval);
+        window.removeEventListener('keydown', onKeydown);
+        window.removeEventListener('scroll', onScroll);
+        timers.forEach(function (t) {
+          if (typeof t === 'number') window.clearInterval(t);
+          else if (t && t.stop) t.stop();
+        });
+        document.body.classList.remove('lightbox-open');
+      });
+
+      return {
+        // 数据
+        personalInfo: personalInfo, backgroundImages: backgroundImages, navItems: navItems,
+        socialLinks: socialLinks, skills: skills, journey: journey, articles: articles,
+        about: about, intro: intro, currentYear: currentYear,
+        backgroundBaseColor: backgroundBaseColor, meters: meters,
+        currentBackground: currentBackground,
+        // 状态
+        isDark: isDark, sidebarOpen: sidebarOpen, showIntro: showIntro,
+        showIntroScreen: showIntroScreen, currentPage: currentPage,
+        expandedIndex: expandedIndex, currentBgIndex: currentBgIndex,
+        runtime: runtime, randomStatus: randomStatus, currentQuote: currentQuote,
+        showToTop: showToTop,
+        // 音乐
+        audioRef: audioRef, musicOpen: musicOpen, isPlaying: isPlaying,
+        track: track, currentTime: currentTime, duration: duration, volume: volume,
+        // 灯箱
+        lightbox: lightbox,
+        // 方法
+        changePage: changePage, toggleTheme: toggleTheme, toggleArticle: toggleArticle,
+        startEverything: startEverything, scrollToTop: scrollToTop,
+        togglePlay: togglePlay, nextTrack: nextTrack, prevTrack: prevTrack,
+        seek: seek, setVolume: setVolume, formatTime: formatTime,
+        onTimeUpdate: onTimeUpdate, onLoadedMetadata: onLoadedMetadata, onAudioError: onAudioError,
+        openLightbox: openLightbox, closeLightbox: closeLightbox, stepLightbox: stepLightbox,
+        // 图标
+        icon: icon
+      };
+    }
+  }).mount('#app');
+})();
 </script>
-<script src='//unpkg.com/valine/dist/Valine.min.js'></script>
-<script async src="//busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js"></script>
-
 </body>
 </html>

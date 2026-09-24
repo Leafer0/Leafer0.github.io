@@ -1,0 +1,259 @@
+/**
+ * Tailwind 源文件 —— 由构建命令编译成 style.css。
+ * 不要直接把这个文件引入页面（里面有 @tailwind 指令，浏览器无法识别）。
+ *
+ * 构建:  npm run build:css
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   基础层
+   ============================================================ */
+@layer base {
+  html {
+    /* 让锚点跳转/回到顶部更平滑，同时尊重"减少动态效果"偏好 */
+    scroll-behavior: smooth;
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* 键盘可访问性：只有键盘聚焦时才显示焦点环，鼠标点击不显示。
+     原来全站没有可见焦点样式，Tab 键用户完全不知道焦点在哪。 */
+  :focus-visible {
+    outline: 2px solid #10b981;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* 尊重系统的"减少动态效果"设置。
+     前庭功能障碍用户看到持续缩放/轮播会不适，这是无障碍硬性要求。 */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ============================================================
+   组件层
+   ============================================================ */
+@layer components {
+  /* 毛玻璃面板 */
+  .glass-panel {
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+  }
+
+  /* 正文衬线字体 */
+  .prose-text {
+    font-family: theme('fontFamily.serif');
+    /* 中文正文行高：1.9 比默认 1.5 更利于长文阅读 */
+    line-height: 1.9;
+  }
+
+  /* 照片卡片：胶带贴纸风格 */
+  .photo-card {
+    position: relative;
+    cursor: zoom-in;
+    background: linear-gradient(135deg, #ffffff 0%, #f9f9f9 100%);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.05), 0 6px 6px rgba(0, 0, 0, 0.1);
+    transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1),
+                box-shadow 0.45s ease;
+    /* 关键修复：原来这里是 overflow: visible，
+       导致悬停放大时图片盖住下面的正文文字。
+       现在由内层容器裁剪，缩放不会再溢出到文字上。 */
+    overflow: hidden;
+  }
+
+  /* 原来这段用 mask-image 想做"胶带"装饰，但缺了 content ，
+     所以一直没有渲染 —— 属于死代码。这里补全为真实的胶带效果。 */
+  .photo-card::before {
+    content: '';
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    width: 64px;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.62);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    transform: translateX(-50%) rotate(-3deg);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+    z-index: 20;
+    pointer-events: none;
+  }
+
+  /* 深色模式下胶带改成半透明深色，否则白胶带太扎眼 */
+  .dark .photo-card::before {
+    background: rgba(255, 255, 255, 0.14);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+
+  .dark .photo-card {
+    background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
+  }
+
+  /* 悬停浮起。缩放从 1.1 收到 1.04：
+     1.1 在双列网格里会让卡片互相重叠，1.04 既有反馈又不打架。 */
+  .photo-card:hover {
+    transform: translateY(-6px) scale(1.04);
+    box-shadow: 0 18px 32px rgba(0, 0, 0, 0.14);
+    z-index: 10;
+  }
+
+  /* 侧边导航激活指示条 */
+  .nav-active-bar {
+    position: absolute;
+    left: 0;
+    top: 20%;
+    height: 60%;
+    width: 4px;
+    background: #10b981;
+    border-radius: 0 4px 4px 0;
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+  }
+}
+
+/* ============================================================
+   工具层 / 独立动画
+   ============================================================ */
+@layer utilities {
+  /* 背景 Ken Burns 缓慢缩放 */
+  .bg-animate {
+    animation: kenburns 30s ease-in-out infinite;
+  }
+
+  /* 注意：.stagger-in 相关规则不在这里，见文件末尾 —— 
+     它带子元素组合符，放在 @layer 里会被 purge 掉。 */
+
+  .animate-fade-in {
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .animate-spin-slow {
+    animation: spinSlow 12s linear infinite;
+  }
+
+  /* 入场页文字流光 */
+  .shimmer-text {
+    background: linear-gradient(90deg, #333 0%, #10b981 50%, #333 100%);
+    background-size: 200% auto;
+    color: transparent;
+    -webkit-background-clip: text;
+    background-clip: text;
+    animation: shine 3s linear infinite;
+  }
+  .dark .shimmer-text {
+    background-image: linear-gradient(90deg, #e5e7eb 0%, #10b981 50%, #e5e7eb 100%);
+    background-size: 200% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+
+  /* 底部装饰线拉伸 */
+  .line-grow {
+    width: 0;
+    height: 2px;
+    background: #10b981;
+    animation: grow 1.2s ease-out forwards;
+    animation-delay: 0.35s;
+  }
+}
+
+/* ============================================================
+   过渡动画（Vue <transition> 用，必须放在 layer 外以免被 purge）
+   ============================================================ */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.28s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+.bg-fade-enter-active,
+.bg-fade-leave-active {
+  transition: opacity 1.6s ease-in-out;
+}
+.bg-fade-enter-from,
+.bg-fade-leave-to {
+  opacity: 0;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes shine {
+  to { background-position: 200% center; }
+}
+
+@keyframes grow {
+  to { width: 150px; }
+}
+
+@keyframes spinSlow {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* 背景缓慢呼吸缩放（Ken Burns）。
+   注意：必须定义在这里，而不是 tailwind.config 的 theme.animation 里 —— 
+   Tailwind 只在用到 animate-* 工具类时才输出对应的 keyframes，
+   而 .bg-animate 是自定义类，写进主题会导致关键帧丢失、动画不生效。 */
+@keyframes kenburns {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+
+/* ============================================================
+   以下选择器刻意放在 @layer 之外
+   ------------------------------------------------------------
+   Tailwind 只会保留 @layer 内"被扫描到"的类名，
+   而下面这些要么是属性选择器、要么类名由 JS 动态拼出、
+   要么带子元素组合符，放进去会被 purge 掉。
+   ============================================================ */
+
+/* Vue 挂载完成前隐藏内容，避免闪现 {{ 未解析的模板语法 }} */
+[v-cloak] {
+  display: none;
+}
+
+/* 图片灯箱打开时锁定页面滚动，避免背景跟着滑动 */
+body.lightbox-open {
+  overflow: hidden;
+}
+
+/* 内容错落浮现（.stagger-in 由 data.js 决定是否出现，必须显式保留） */
+.stagger-in > * {
+  opacity: 0;
+  animation: fadeInUp 0.7s ease forwards;
+}
+.stagger-in > *:nth-child(1) { animation-delay: 0.06s; }
+.stagger-in > *:nth-child(2) { animation-delay: 0.12s; }
+.stagger-in > *:nth-child(3) { animation-delay: 0.18s; }
+.stagger-in > *:nth-child(4) { animation-delay: 0.24s; }
+.stagger-in > *:nth-child(5) { animation-delay: 0.3s; }
+.stagger-in > *:nth-child(6) { animation-delay: 0.36s; }
+.stagger-in > *:nth-child(n + 7) { animation-delay: 0.42s; }
+
