@@ -25,6 +25,7 @@
 │   ├── build-icons.js      # 从 Font Awesome 包提取图标 path，并校验图标名
 │   ├── preview-about.js    # 终端里预览"关于我"文案 + 字数/句长/主语密度检查
 │   ├── serve.js            # 本地预览服务器（模拟 Linux 大小写敏感）
+│   ├── wait-pages.js       # 推送后轮询等待 GitHub Pages 部署完成
 │   ├── shot.js             # 指定位置截一张干净截图，用于肉眼校对排版
 │   ├── screenshot.js       # 全流程渲染检查：异常、404、溢出、体积、截图
 │   ├── check-theme.js      # 主题记忆逻辑的自动化断言
@@ -197,6 +198,7 @@ node tools/diag.js                   # 资源加载诊断
 
 node tools/preview-about.js          # 改完文案先看这个，不用开浏览器
 node tools/shot.js http://127.0.0.1:8899/ about-text 1150   # 截指定位置校对排版
+node tools/wait-pages.js             # 推送后等 Pages 部署完（默认最多 5 分钟）
 ```
 
 当前结果：
