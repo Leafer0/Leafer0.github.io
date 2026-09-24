@@ -2,7 +2,7 @@
   "name": "leafer-garden",
   "version": "1.0.0",
   "private": true,
-  "description": "Leafer 的个人主页 —— GitHub Pages 静态站点",
+  "description": "Leafer 的个人主页 —— 静态站点，部署在 Vercel 与 GitHub Pages",
   "scripts": {
     "build:css": "tailwindcss -c tailwind.config.js -i ./src/input.css -o ./style.css --minify",
     "watch:css": "tailwindcss -c tailwind.config.js -i ./src/input.css -o ./style.css --watch",
@@ -11,6 +11,7 @@
     "build": "npm run build:css && npm run build:icons",
     "migrate:json": "node tools/migrate-to-json.js",
     "verify:cms": "node tools/verify-cms-config.js",
+    "verify:vercel": "node tools/verify-vercel-config.js && node tools/verify-vercelignore.js",
     "build:waline": "node tools/build-waline.js",
     "serve": "node tools/serve.js"
   },

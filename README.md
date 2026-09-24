@@ -18,6 +18,8 @@
 ├── tailwind.config.js      # Tailwind 配置，全站主题的唯一来源
 ├── package.json            # 构建脚本
 ├── .nojekyll               # 让 GitHub Pages 跳过 Jekyll 处理
+├── vercel.json             # Vercel 缓存与响应头配置
+├── .vercelignore           # 排除不上传的文件（部署上传量 122MB -> 25MB）
 │
 ├── admin/                  # 【网页写作后台】部署后访问 /admin/
 │   ├── index.html          # 后台页面（加载 Sveltia CMS）
@@ -46,6 +48,8 @@
 │   ├── check-admin.js      # `/admin` 后台能否加载、config.yml 能否解析
 │   ├── check-comments.js   # 评论区：渲染、按文章隔离、暗色、服务端连通性
 │   ├── check-lazy.js       # 图片懒加载是否生效的检查
+│   ├── verify-vercel-config.js   # 校验 vercel.json（未知键会导致部署被拒）
+│   ├── verify-vercelignore.js    # 校验 .vercelignore 是否误伤线上必需文件
 │   ├── diag.js             # DOM 诊断，排查资源加载问题
 │   └── diag-comments.js    # 评论区逐步诊断（定位主线程卡死之类的问题）
 │
@@ -281,7 +285,67 @@ node tools/diag-comments.js       # 出问题时逐步定位卡在哪一步
 
 ---
 
-## 六、想换成真正的服务器该怎么办
+## 六、部署到 Vercel（当前方案）
+
+主站和评论服务都放在 Vercel，这样国内访客不必翻墙也能打开（GitHub Pages 在国内时快时慢）。
+
+### 为什么主站也搬到 Vercel
+
+`leafer-pi.vercel.app` 这类 `*.vercel.app` 域名在国内是**被墙的**。
+但只要绑定自己的域名，Vercel 上的站点在国内就是可访问的。
+所以主站和评论服务都挂到自有域名下，两者一起解决了访问问题。
+
+### 项目侧的配置（已完成，不需要你动手）
+
+| 文件 | 作用 |
+| --- | --- |
+| `vercel.json` | 缓存策略：图片/音频/vendor 长期缓存，`data.json` 和 HTML 每次校验 |
+| `.vercelignore` | 排除不上传的文件，把上传量从 122MB 降到 25MB |
+
+**关于 `.vercelignore`**：`assets/`（85MB）和 `me/`（12MB）是**原始大图的备份**，
+页面从不请求它们（实际只用 `img/`、`music/`、`vendor/`）。
+排除它们能让每次部署少传约 97MB。
+**这些文件仍然完整保留在 Git 仓库里**，所以"能换回原图"这个特性不受影响。
+
+改完这两个文件后务必跑一次校验：
+
+```bash
+node tools/verify-vercel-config.js    # 检查 vercel.json 是否会被 Vercel 拒绝
+node tools/verify-vercelignore.js     # 检查有没有误伤线上必需的文件
+```
+
+> `vercel.json` 对未知键是**直接拒绝**的。曾经因为习惯性加了个 `comment` 字段做说明，
+> 就被 schema 判为非法 —— 而这种错误只在部署时才暴露，所以需要本地校验。
+
+### 在 Vercel 上要做的三步
+
+1. **导入仓库**：Vercel → Add New → Project → 选择 `Leafer0/Leafer0.github.io`
+   * Framework Preset 选 **Other**
+   * Build Command / Output Directory **都留空**（本站是纯静态，产物已提交）
+2. **绑定域名**（项目 Settings → Domains）：
+   * `leafer114514.xyz` → 主站
+   * `waline.leafer114514.xyz` → 评论服务（同一个项目也可以，Waline 是独立项目则加在那边）
+3. **等证书签发**：Vercel 会自动申请 HTTPS 证书，生效前访问会报连接错误，属正常
+
+### DNS 记录（域名已委派给 Vercel DNS，记录加在 Vercel 面板）
+
+| 类型 | 名称 | 值 |
+| --- | --- | --- |
+| A | `@` | Vercel 项目域名页给出的值 |
+| CNAME | `waline` | Vercel 项目域名页给出的值 |
+
+> 记录值请**以 Vercel 项目面板显示的为准**，不要照抄别处的示例。
+> 如果域名委派给 Vercel DNS，通常无需手动添加 —— 在项目里认领域名后会自动写入。
+
+### 与 GitHub Pages 的关系
+
+搬到 Vercel 后，`leafer0.github.io` 仍然可用（作为备用），
+但正式地址是自有域名。GitHub Pages 的部署流程不受影响，
+所以两套都活着 —— 万一 Vercel 出问题，旧地址还能访问。
+
+---
+
+## 七、想换成真正的服务器该怎么办
 
 先用一句话判断你到底需不需要服务器：
 
@@ -315,7 +379,7 @@ node tools/diag-comments.js       # 出问题时逐步定位卡在哪一步
 
 ---
 
-## 七、本次改进说明
+## 八、本次改进说明
 
 ### 1. 修掉的线上 Bug
 
@@ -368,7 +432,7 @@ node tools/diag-comments.js       # 出问题时逐步定位卡在哪一步
 
 ---
 
-## 八、质量校验
+## 九、质量校验
 
 改动后做过的自动化验证（均为无头浏览器真实渲染，非静态检查）：
 
@@ -382,6 +446,8 @@ node tools/check-comments.js         # 评论区：渲染、按文章隔离、�
 node tools/check-admin.js            # /admin 后台：脚本加载、config.yml 解析
 node tools/check-lazy.js             # 懒加载是否生效
 node tools/diag.js                   # 资源加载诊断
+node tools/verify-vercel-config.js   # 改过 vercel.json 后必跑
+node tools/verify-vercelignore.js    # 改过 .vercelignore 后必跑
 
 node tools/preview-about.js          # 改完文案先看这个，不用开浏览器
 node tools/shot.js http://127.0.0.1:8899/ about-text 1150   # 截指定位置校对排版
@@ -418,7 +484,7 @@ npm run verify:cms                   # 改完 admin/config.yml 必跑，防止�
 
 ---
 
-## 九、可调参数速查
+## 十、可调参数速查
 
 如果觉得某些取舍不合适，可以按下面调：
 
