@@ -100,9 +100,13 @@ collections:
             name: navItems
             widget: list
             fields:
-              - { label: 页面标识, name: id, widget: string, hint: 只能是 about / journey / thoughts，改错会导致页面空白 }
+              - label: 页面标识
+                name: id
+                widget: select
+                options: [about, journey, thoughts, guestbook]
+                hint: 必须是页面代码里存在的标识，改错会导致该页空白
               - { label: 显示名称, name: name, widget: string }
-              - { label: 图标, name: icon, widget: select, options: [user, mountain, feather] }
+              - { label: 图标, name: icon, widget: select, options: [user, mountain, feather, envelope] }
 
           - label: 社交链接
             name: socialLinks

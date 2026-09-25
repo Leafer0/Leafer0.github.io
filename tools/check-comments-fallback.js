@@ -114,13 +114,35 @@ const child = spawn(browserPath, [
       const b=[...document.querySelectorAll('button')].find(x=>x.textContent.includes('阅读全文'));
       if(!b) return false; b.click(); return true;
     })()`);
-    // 探测超时是 1.5 秒，给足时间让它失败并隐藏
-    await sleep(6000);
+    // 轮询等待评论区被移除，而不是赌一个固定 sleep。
+    // 探测失败所需时间取决于环境：对不可解析的域名，DNS 失败可能要 7~8 秒
+    // （实测），而最初只等 6 秒就断言，于是报出"评论区仍然出现"的假失败。
+    // 判据用"是否还在显示加载中"：加载中消失即代表探测已出结果。
+    let waited = 0;
+    while (waited < 20000) {
+      await sleep(1000);
+      waited += 1000;
+      const stillLoading = await evaluate(`/评论加载中/.test(document.body.innerText)`);
+      const hasContainer = await evaluate(
+        `document.querySelectorAll('[id^="waline-thread-"], #waline-guestbook').length > 0`
+      );
+      if (!stillLoading && !hasContainer) break;
+    }
+    console.log('\n  等待降级完成: ' + (waited / 1000) + ' 秒');
 
     const state = await evaluate(`(() => {
-      const sec=[...document.querySelectorAll('section')].find(s=>/评论/.test(s.textContent));
+      // 判定"评论区是否被隐藏"要看**容器本身**，不要用"含『评论』二字的 section"——
+      // HTML 注释里也有"评论"二字，用文字匹配会误命中注释所在的节点，
+      // 报出"评论区仍然出现"的假失败（真发生过）。
+      const containers = [...document.querySelectorAll('[id^="waline-thread-"], #waline-guestbook')];
       return {
-        hasCommentSection: !!sec,
+        hasCommentSection: containers.length > 0,
+        containerIds: containers.map(c => c.id),
+        containerText: containers.map(c => (c.innerText || '').slice(0, 60)),
+        // 页面上是否有"加载中/加载失败"提示
+        loadingHint: /评论加载中/.test(document.body.innerText),
+        errorHint: /评论加载失败/.test(document.body.innerText),
+        csDebug: window.__cs || null,
         wlCount: document.querySelectorAll('[class^="wl-"]').length,
         bodyText: document.body.innerText.length,
         articleVisible: document.body.innerText.includes('南京城'),
@@ -129,7 +151,11 @@ const child = spawn(browserPath, [
 
     check(expanded, '文章可展开', expanded ? '' : '未找到"阅读全文"按钮');
     check(!state.hasCommentSection, '评论区已隐藏（不显示坏掉的框子）',
-      state.hasCommentSection ? '评论区仍然出现' : '整块消失，符合预期');
+      state.hasCommentSection
+        ? '仍存在的容器: ' + JSON.stringify(state.containerIds)
+          + '  __cs=' + JSON.stringify(state.csDebug)
+          + '  可见元素数=' + state.wlCount
+        : '整块消失，符合预期');
     check(state.wlCount === 0, '没有残留的 Waline 元素', state.wlCount + ' 个 wl- 元素');
     check(state.articleVisible, '文章正文照常显示', '页面文字 ' + state.bodyText + ' 字符');
     check(exceptions.length === 0, '无未捕获 JS 异常',

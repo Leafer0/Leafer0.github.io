@@ -46,8 +46,14 @@
 │   ├── check-theme.js      # 主题记忆逻辑的自动化断言
 │   ├── check-about.js      # 「关于我」段落是否全部正确渲染
 │   ├── check-admin.js      # `/admin` 后台能否加载、config.yml 能否解析
-│   ├── check-comments.js   # 评论区：渲染、按文章隔离、暗色、服务端连通性
+│   ├── check-comments.js   # 文章评论：渲染、按文章隔离、暗色、服务端连通性
+│   ├── check-guestbook.js  # 留言板：入口、渲染、path、实例切换
 │   ├── check-comments-fallback.js # 评论服务不可达时能否安静隐藏
+│   ├── check-waline-multi-instance.js # 同页面挂两个 Waline 实例是否可行
+│   ├── check-comment-probe-side-effect.js # 探测是否会污染阅读量数据
+│   ├── measure-comment-latency.js # 测 Waline 冷启动耗时（用 CDP 绕本地 CORS）
+│   ├── describe-comment-ux.js     # 打印访客实际看到的评论表单
+│   ├── check-dns-records.ps1      # 核对 A/AAAA/www/TXT 与记录冲突
 │   ├── check-domain.ps1    # 换域名/改绑定后验证线上是否真的正常
 │   ├── check-lazy.js       # 图片懒加载是否生效的检查
 │   ├── verify-vercel-config.js   # 校验 vercel.json（未知键会导致部署被拒）
@@ -232,6 +238,21 @@ npm run verify:cms
 评论用的是 [Waline](https://waline.js.org/)，服务端部署在 Vercel，数据存在你的数据库里。
 **不需要为此买服务器** —— 它跑在 serverless 平台上，免费额度对个人博客绰绰有余。
 
+### 两种评论形态
+
+站内有两处评论区，用的是同一个 Waline 服务，区别只在 `path`：
+
+| 位置 | 入口 | Waline path | 说明 |
+| --- | --- | --- | --- |
+| **留言板** | 侧边栏「留言板」 | `/guestbook` | **全站共用一块**，所有访客看到同一份评论 |
+| 文章评论 | 「帖子」→ 展开文章 | `/thoughts/<序号>` | 每篇文章各自一份 |
+
+留言板是绝大多数访客会用的地方（"我想说点什么"）；文章评论适合针对具体内容的讨论。
+两句都保留，互不影响 —— 已实测两处实例切换时旧的会被销毁，不会串数据。
+
+> **`path` 绝不能省略或用 `location.pathname`。** 本站是单页应用，
+> 所有页面共用同一个 URL；若用 pathname，全部文章乃至留言板会共用同一份评论。
+
 ### 配置
 
 配置在 `data.json` 的 `comments` 字段，也可以直接在 `/admin/` 后台改：
@@ -250,11 +271,20 @@ npm run verify:cms
 
 * **按文章隔离**：本站是单页应用，所有文章共用一个 URL，
   所以不能拿 `location.pathname` 当评论标识 —— 那样所有文章会共用同一份评论。
-  代码里用的是 `/thoughts/<文章序号>`，见 `initWaline()`。
+  代码里用的是 `/thoughts/<文章序号>`，留言板用 `/guestbook`，见 `initWaline()` / `initGuestbook()`。
 * **生命周期**：Waline 实例由 `watch(commentHostKey)` 统一创建与销毁。
   这里**不能用 Vue 的函数式 `:ref`** —— 它每次渲染都是新函数，
   Vue 会先以 `null` 再以元素调用，等于每次渲染都销毁重建一遍，
   实测会引发无限渲染循环把主线程卡死。
+* **等容器出现，而不是等一个 tick**：页面切换用了 `<transition mode="out-in">`，
+  旧页面要先播完离场动画才会插入新页面。只等一个 `nextTick` 时容器还没进 DOM，
+  初始化会直接返回 —— 界面上表现为"什么都没有"，既无加载提示也无报错。
+  代码里用 `waitForElement()` 轮询等待，见 `initGuestbook()`。
+* **预热不能有副作用**：页面加载后会主动打一次请求预热服务（把 serverless 冷启动的
+  代价从"读者点开时白等"挪到后台）。这个预热**必须用独立的 `warmupCommentServer()`**，
+  不能复用 `probeCommentServer()` —— 后者失败会把 `commentsReady` 置为 false
+  （用于"服务真不可达，整块隐藏"），预热失败不该有这种后果。
+  这个 bug 真实发生过：一次预热失败把本来正常的评论区也关掉了。
 * **懒加载**：不点开文章就不会下载那 257KB 的评论组件。
 * **暗色适配**：传的是 `dark: 'html.dark'`，与本站的主题切换方式对应。
 * **自托管客户端**：`vendor/waline/` 是 Waline 的构建产物，**必须提交到仓库**
@@ -305,8 +335,10 @@ curl.exe -sS -o NUL -w "HTTP %{http_code}  %{time_total}s`n" --max-time 15 https
 ### 验证
 
 ```bash
-node tools/check-comments.js           # 渲染、按文章隔离、暗色、服务端连通性
+node tools/check-comments.js           # 文章评论：渲染、按文章隔离、暗色、服务端连通性
+node tools/check-guestbook.js          # 留言板：入口、渲染、path、实例切换
 node tools/check-comments-fallback.js  # 服务不可达时能否安静隐藏（重要降级行为）
+node tools/check-waline-multi-instance.js  # 同页面能否挂两个实例（验证两处评论区可共存）
 node tools/diag-comments.js            # 出问题时逐步定位卡在哪一步
 ```
 

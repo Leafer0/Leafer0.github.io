@@ -450,6 +450,33 @@
           </div>
         </div>
 
+        <!-- ---------- 留言板（全站共用一块评论区）----------
+             与"帖子"页的区别：这里所有访客共用同一个 Waline path（/guestbook），
+             而不是每篇文章各自一份。所以没有文章展开/收起的逻辑，
+             进入本页就挂载、离开就销毁。
+
+             为什么单独放一个 v-if 分支：模板里绝不能同时出现两个评论区实例，
+             每次只渲染当前页面的那一个（配合 watch(commentHostKey) 管理实例生命周期）。 -->
+        <div v-else-if="currentPage === 'guestbook'" key="guestbook" class="max-w-3xl mx-auto py-12 md:py-20 px-6">
+          <h1 class="text-4xl font-bold prose-text mb-4">留言板</h1>
+          <p class="prose-text text-gray-600 dark:text-gray-400 mb-10 leading-relaxed">
+            这里全站共用一块留言区，想说什么都可以留在这儿。填个昵称就能发言，不需要注册。
+          </p>
+          <div class="w-12 h-1 bg-emerald-500 rounded-full mb-10"></div>
+
+          <div v-if="commentsReady">
+            <div v-if="guestbookState === 'loading'"
+                 class="text-sm text-gray-500 dark:text-gray-400 py-4">评论加载中…</div>
+            <div v-else-if="guestbookState === 'error'"
+                 class="text-sm text-gray-500 dark:text-gray-400 py-4">
+              评论加载失败，可能是服务暂时不可用。
+              <button type="button" class="ml-1 underline hover:text-emerald-500"
+                      @click="retryGuestbook">重试</button>
+            </div>
+            <div id="waline-guestbook"></div>
+          </div>
+        </div>
+
       </transition>
 
       <footer class="max-w-3xl mx-auto py-12 px-6 text-center text-xs text-gray-500 dark:text-gray-400">
@@ -697,6 +724,14 @@
       var commentState = ref({});   // 文章序号 -> 'loading' | 'ready' | 'error'
       var walineLoading = null;     // 脚本加载的 Promise，避免并发重复加载
 
+      // 留言板（全站共用的那一块评论），与"每篇文章一条评论线"分开管理
+      var guestbookInstance = null;
+      var guestbookState = ref(null); // null | 'loading' | 'ready' | 'error'
+
+      // 留言板在服务端的标识。所有访客共用这一个 path，
+      // 所以它是一块真正的"公共留言区"，而不是按文章分开的评论。
+      var GUESTBOOK_PATH = '/guestbook';
+
       var backgroundBaseColor = D.backgroundBaseColor || '#0b0f14';
       var backgroundInterval = D.backgroundInterval || 8000;
 
@@ -905,14 +940,19 @@
       /* ---------------- 评论：挂载与销毁 ----------------
          生命周期设计（这里最容易出错，写清楚原因）：
          - Waline 实例必须手动创建与销毁，Vue 管不了它内部的 DOM
-         - 谁该触发重建：只有「当前展开的文章序号」变化时才需要，
-           所以用一个 computed(commentHostKey) 作为唯一信号，watch 它
+         - 谁该触发重建：用一个 computed(commentHostKey) 作为唯一信号，watch 它。
+           它同时覆盖"展开的文章序号变化"和"是否在留言板页"两种情况，
+           这样切换页面/切换文章都只有一处判断，不会漏。
          - 为什么不用 :ref 回调：函数式 ref 每次渲染都是新函数，
            Vue 会先以 null 再以元素调用它，等于每渲染一次就销毁重建一次，
            实测会无限循环并把主线程卡死
+         - 同一时刻页面上**只应存在一个评论区实例**：
+           文章页与留言板页是互斥的 v-if 分支，所以不会同时出现。
+           （已实测同一页面确实能挂两个 Waline 实例，但没必要这么做）
       -------------------------------------------------- */
       var commentHostKey = computed(function () {
         if (!commentsReady.value) return '';
+        if (currentPage.value === 'guestbook') return 'guestbook';
         var i = expandedIndex.value;
         return (currentPage.value === 'thoughts' && i !== null) ? 'thoughts:' + i : '';
       });
@@ -928,15 +968,34 @@
         commentState.value = next;
       }
 
-      /** 销毁全部实例（切换文章、收起文章、离开帖子页时调用） */
+      /** 销毁某篇文章的评论区实例 */
+      function destroyWalineInstance(index) {
+        var inst = commentInstances[index];
+        if (inst && typeof inst.destroy === 'function') {
+          try { inst.destroy(); } catch (e) { /* 销毁失败不影响后续 */ }
+        }
+        delete commentInstances[index];
+      }
+
+      /** 销毁全部文章评论区实例（切换文章、收起文章、离开帖子页时调用） */
       function teardownComments() {
         Object.keys(commentInstances).forEach(function (k) {
-          var inst = commentInstances[k];
-          if (inst && typeof inst.destroy === 'function') {
-            try { inst.destroy(); } catch (e) { /* 销毁失败不影响后续 */ }
-          }
-          delete commentInstances[k];
+          destroyWalineInstance(k);
         });
+      }
+
+      /** 销毁留言板实例（离开留言板页时调用） */
+      function teardownGuestbook() {
+        if (guestbookInstance) {
+          try { guestbookInstance.destroy(); } catch (e) { /* 忽略 */ }
+          guestbookInstance = null;
+        }
+        // Waline 可能会在容器之后追加自己的元素，一并清掉
+        var box = document.getElementById('waline-guestbook');
+        if (box) {
+          Array.prototype.slice.call(document.querySelectorAll('.wl-power'))
+            .forEach(function (n) { if (n.parentNode === document.body) n.remove(); });
+        }
       }
 
       /** 脚本若未加载成功则动态补上（正常情况 index.html 里已经引了） */
@@ -1007,6 +1066,63 @@
       }
 
       /**
+       * Waline 的公共配置。文章评论与留言板共用同一份，
+       * 只有 el 和 path 不同 —— 这样两处设置不会走偏。
+       */
+      function walineBaseOptions() {
+        return {
+          serverURL: commentsCfg.serverURL,
+          lang: commentsCfg.lang || 'zh-CN',
+          pageSize: commentsCfg.pageSize || 10,
+          login: commentsCfg.login || 'enable',
+          requiredMeta: commentsCfg.requiredMeta || [],
+          meta: commentsCfg.meta || ['nick', 'mail', 'link'],
+          commentSorting: commentsCfg.commentSorting || 'latest',
+          pageview: false,
+          reaction: false,
+          // 表情包在 unpkg 上，国内可能慢；配置为空数组则不显示表情
+          emoji: (commentsCfg.emojiPresets && commentsCfg.emojiPresets.length)
+            ? commentsCfg.emojiPresets
+            : false,
+          // 本站用 html.dark 切换暗色，Waline 会在该选择器生效时自动换配色
+          dark: 'html.dark',
+          // 用不到的功能关掉，少加载一些资源
+          search: false,
+          imageUploader: false
+        };
+      }
+
+      /**
+       * 只用来"预热"的一次请求：结果只影响缓存，绝不改变任何界面状态。
+       *
+       * 为什么不直接复用 probeCommentServer()：
+       *   那个函数在失败时会把 commentsReady 置为 false（用于"服务真的不可达，
+       *   整块隐藏评论区"）。而预热只是一个优化动作，
+       *   失败不该有任何后果 —— 复用它会因为一次预热失败就把整个评论区关掉。
+       *   这个 bug 真实发生过：预热请求在本地 CORS 下失败，
+       *   导致能正常加载的文章评论也被一并隐藏。
+       */
+      function warmupCommentServer() {
+        if (!commentsReady.value) return;
+        var url = String(commentsCfg.serverURL || '').replace(/\/$/, '')
+          + '/api/comment?path=' + encodeURIComponent('/thoughts/0');
+        var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var timer = window.setTimeout(function () { if (ctrl) ctrl.abort(); },
+          COMMENT_PROBE_TIMEOUT);
+        fetch(url, {
+          method: 'GET', mode: 'cors', cache: 'no-store',
+          credentials: 'omit',
+          signal: ctrl ? ctrl.signal : undefined
+        }).then(function () {
+          window.clearTimeout(timer);
+          // 成功即视为服务已热，不做任何提示
+        }).catch(function () {
+          window.clearTimeout(timer);
+          // 失败也静默：这只是一次预热，真正的可达性判断在挂载时进行
+        });
+      }
+
+      /**
        * 初始化某篇文章的评论区。
        *
        * path 用 '/thoughts/<序号>' 而不是 location.pathname ——
@@ -1014,52 +1130,47 @@
        * 若用 pathname，全部文章会共用同一份评论。
        */
       function initWaline(index) {
-        var el = document.getElementById(commentsElId(index));
-        if (!el || !commentsReady.value) return;
+        if (!commentsReady.value) return;
         setCommentState(index, 'loading');
 
-        probeCommentServer().then(function (reachable) {
-          if (!reachable) {
-            // 服务连不通：隐藏整块评论区，不给读者留下一个坏掉的界面
-            console.warn('评论服务不可达，已隐藏评论区：' + commentsCfg.serverURL);
-            commentsReady.value = false;
+        var containerId = commentsElId(index);
+
+        // 先等容器出现再探测。
+        // 不能假定调用时容器已在 DOM 里：页面切换/展开文章都走 <transition mode="out-in">，
+        // 旧内容要先播完离场动画才会插入新内容。只等一个 nextTick 时容器尚未存在，
+        // 函数会直接 return —— 界面上表现为"评论区什么都没显示"
+        // （既无加载提示也无报错，极难排查）。留言板那边踩过同一个坑。
+        waitForElement(containerId, 3000).then(function (el) {
+          if (!el) {
+            console.error('评论区容器始终未出现: ' + containerId);
             setCommentState(index, null);
             return;
           }
-          return ensureWaline().then(function () {
-            // 异步返回时用户可能已经收起文章或切走，必须重新确认容器还在
-            if (!el.isConnected) return;
-            teardownComments();
-            try {
-              commentInstances[index] = window.Waline.init({
-                el: el,
-                serverURL: commentsCfg.serverURL,
-                path: '/thoughts/' + index,
-                lang: commentsCfg.lang || 'zh-CN',
-                pageSize: commentsCfg.pageSize || 10,
-                login: commentsCfg.login || 'enable',
-                requiredMeta: commentsCfg.requiredMeta || [],
-                meta: commentsCfg.meta || ['nick', 'mail', 'link'],
-                commentSorting: commentsCfg.commentSorting || 'latest',
-                pageview: false,
-                reaction: false,
-                // 表情包在 unpkg 上，国内可能慢；配置为空数组则不显示表情
-                emoji: (commentsCfg.emojiPresets && commentsCfg.emojiPresets.length)
-                  ? commentsCfg.emojiPresets
-                  : false,
-                // 本站用 html.dark 切换暗色，Waline 会在该选择器生效时自动换配色
-                dark: 'html.dark',
-                // 用不到的功能关掉，少加载一些资源
-                search: false,
-                imageUploader: false
-              });
-              setCommentState(index, 'ready');
-              // 等 Waline 把评论列表渲染出来后再读条数
-              window.setTimeout(function () { readCommentCount(index); }, 1200);
-            } catch (err) {
-              console.error('评论初始化失败:', err);
-              setCommentState(index, 'error');
+          return probeCommentServer().then(function (reachable) {
+            if (!reachable) {
+              // 服务连不通：隐藏整块评论区，不给读者留下一个坏掉的界面
+              console.warn('评论服务不可达，已隐藏评论区：' + commentsCfg.serverURL);
+              commentsReady.value = false;
+              setCommentState(index, null);
+              return;
             }
+            return ensureWaline().then(function () {
+              // 异步返回时用户可能已经收起文章或切走，必须重新确认容器还在
+              if (!el.isConnected) return;
+              teardownComments();
+              try {
+                var opts = walineBaseOptions();
+                opts.el = el;
+                opts.path = '/thoughts/' + index;
+                commentInstances[index] = window.Waline.init(opts);
+                setCommentState(index, 'ready');
+                // 等 Waline 把评论列表渲染出来后再读条数
+                window.setTimeout(function () { readCommentCount(index); }, 1200);
+              } catch (err) {
+                console.error('评论初始化失败:', err);
+                setCommentState(index, 'error');
+              }
+            });
           });
         }).catch(function (err) {
           console.error('评论初始化异常:', err);
@@ -1067,10 +1178,82 @@
         });
       }
 
+      /**
+       * 初始化留言板（全站共用一块评论区）。
+       *
+       * 与文章评论的唯一区别是 path 固定为 GUESTBOOK_PATH，
+       * 所以所有访客看到并写入的是同一份评论。
+       */
+      /**
+       * 等待某个元素出现。
+       *
+       * 为什么不能只等一个 nextTick：
+       *   页面切换用了 <transition mode="out-in">，旧页面要**先播完离场动画**
+       *   才会插入新页面。只等一个 tick 时容器还没进 DOM，
+       *   初始化会直接返回 —— 界面上表现为"什么都没有"，
+       *   既没有加载提示也没有报错，非常难查（这个坑真实踩过，
+       *   靠把提前返回的原因暴露到 window 才定位到）。
+       */
+      function waitForElement(id, timeout) {
+        timeout = timeout || 3000;
+        return new Promise(function (resolve) {
+          var t0 = Date.now();
+          (function poll() {
+            var el = document.getElementById(id);
+            if (el && el.isConnected) return resolve(el);
+            if (Date.now() - t0 > timeout) return resolve(null);
+            window.setTimeout(poll, 50);
+          })();
+        });
+      }
+
+      function initGuestbook() {
+        if (!commentsReady.value) return;
+        guestbookState.value = 'loading';
+
+        probeCommentServer().then(function (reachable) {
+          if (!reachable) {
+            console.warn('评论服务不可达，已隐藏留言板：' + commentsCfg.serverURL);
+            commentsReady.value = false;
+            guestbookState.value = null;
+            return null;
+          }
+          return Promise.all([ensureWaline(), waitForElement('waline-guestbook', 3000)]);
+        }).then(function (res) {
+          if (!res) return; // 探测失败，已在上面处理
+          var box = res[1];
+          if (!box) {
+            console.error('留言板容器始终未出现');
+            guestbookState.value = 'error';
+            return;
+          }
+          teardownGuestbook();
+          try {
+            var opts = walineBaseOptions();
+            opts.el = box;
+            opts.path = GUESTBOOK_PATH;
+            guestbookInstance = window.Waline.init(opts);
+            guestbookState.value = 'ready';
+          } catch (err) {
+            console.error('留言板初始化失败:', err);
+            guestbookState.value = 'error';
+          }
+        }).catch(function (err) {
+          console.error('留言板初始化异常:', err);
+          guestbookState.value = 'error';
+        });
+      }
+
       function retryComments(index) {
         teardownComments();
         setCommentState(index, null);
         initWaline(index);
+      }
+
+      function retryGuestbook() {
+        teardownGuestbook();
+        guestbookState.value = null;
+        initGuestbook();
       }
 
       /**
@@ -1097,13 +1280,17 @@
         }
       }
 
-      // 展开的文章变化时才重建评论区
+      // 评论区宿主变化时（展开的文章变化、或进出留言板）重建对应实例。
+      // 用一个 key 统一表达两种情况，避免在多处各写一遍判断而漏掉某条路径。
       watch(commentHostKey, function (key) {
         teardownComments();
+        teardownGuestbook();
         if (!key) return;
-        var index = Number(key.split(':')[1]);
         // flush: 'post' 保证 DOM 已更新，容器一定存在
-        Vue.nextTick(function () { initWaline(index); });
+        Vue.nextTick(function () {
+          if (key === 'guestbook') initGuestbook();
+          else initWaline(Number(key.split(':')[1]));
+        });
       }, { flush: 'post' });
 
       function scrollToTop() {
@@ -1190,14 +1377,9 @@
         // 预热评论服务：Waline 在 serverless 上冷启动可达 6 秒（实测 6022ms），
         // 而热态只要 400ms 左右。这里在页面加载后先打一次，
         // 把冷启动的代价从"读者点开文章时白等"挪到"后台悄悄完成"。
-        // 结果不参与判断，失败也无所谓 —— 真正挂载时还会再探测一次。
-        if (commentsReady.value) {
-          window.setTimeout(function () {
-            probeCommentServer().then(function (ok) {
-              if (!ok) console.warn('评论服务预热失败（不影响页面其他部分）');
-            });
-          }, 1500);
-        }
+        // 注意用 warmupCommentServer 而不是 probeCommentServer ——
+        // 后者失败会关掉整个评论区，预热不该有这种后果。
+        window.setTimeout(warmupCommentServer, 1500);
 
         // 统计脚本延迟加载：不占用首屏关键路径
         window.setTimeout(function () {
@@ -1249,6 +1431,7 @@
         // 评论
         commentsReady: commentsReady, commentCounts: commentCounts, commentState: commentState,
         commentsElId: commentsElId, retryComments: retryComments,
+        guestbookState: guestbookState, retryGuestbook: retryGuestbook,
         // 图标
         icon: icon
       };

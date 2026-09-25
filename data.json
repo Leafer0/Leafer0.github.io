@@ -311,6 +311,11 @@
       "icon": "feather",
       "id": "thoughts",
       "name": "帖子"
+    },
+    {
+      "icon": "envelope",
+      "id": "guestbook",
+      "name": "留言板"
     }
   ],
   "personalInfo": {
