@@ -964,19 +964,38 @@
        *   如果配的域名在国内被墙（本站真实踩过这个坑），
        *   Waline 会在那里长时间转圈，读者只看到一片空白，
        *   分不清是"没有评论"还是"加载失败"。
-       *   这里用一次 1.5 秒超时的轻量请求先探路：
-       *   连不通就干脆不显示评论区，而不是留一个坏掉的框子。
-       *   探测失败只影响评论，页面其余部分完全不受影响。
+       *   这里先用一次轻量请求探路：连不通就干脆不显示评论区，
+       *   而不是留一个坏掉的框子。探测失败只影响评论，页面其余部分不受影响。
+       *
+       * 这个请求是**只读的**：/api/comment 取的是评论列表
+       * （返回的 data.count 是评论条数，不是阅读量），
+       * 不会写入任何数据，也不会给文章加阅读量 —— 已实测确认两次调用 count 不变。
+       *
+       * 超时值取 8 秒，这个数字是被实测逼出来的：
+       *   Waline 跑在 serverless 平台上，**冷启动**时首次响应可达 6 秒
+       *   （本站实测 6022ms，而第 2、3 次只要 357/405ms）。
+       *   最初写的是 1.5 秒，结果服务完全正常、却因为客户端自己掐得太早
+       *   被判定为"不可达"，评论区被错误地整块隐藏。
+       *   所以宁可给足时间，也不要用一个乐观的超时制造假故障。
+       *
+       * 另外页面上会主动**预热**一次（见 onMounted），
+       * 把冷启动的代价从"读者点开文章时"挪到"页面刚加载时"。
        */
+      var COMMENT_PROBE_TIMEOUT = 8000;
+
       function probeCommentServer() {
         var url = String(commentsCfg.serverURL || '').replace(/\/$/, '')
           + '/api/comment?path=' + encodeURIComponent('/thoughts/0');
         var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-        var timer = window.setTimeout(function () { if (ctrl) ctrl.abort(); }, 1500);
+        var timer = window.setTimeout(function () { if (ctrl) ctrl.abort(); },
+          COMMENT_PROBE_TIMEOUT);
         return fetch(url, {
           method: 'GET',
           mode: 'cors',
           cache: 'no-store',
+          // Waline 返回 Access-Control-Allow-Origin: *，
+          // 通配符下不允许携带凭据，必须显式声明 omit
+          credentials: 'omit',
           signal: ctrl ? ctrl.signal : undefined
         }).then(function (res) {
           window.clearTimeout(timer);
@@ -1167,6 +1186,18 @@
         // 入场页自动聚焦，键盘用户可以直接回车进入
         var introBtn = document.querySelector('[aria-label], #app button');
         if (introBtn && introBtn.focus) introBtn.focus();
+
+        // 预热评论服务：Waline 在 serverless 上冷启动可达 6 秒（实测 6022ms），
+        // 而热态只要 400ms 左右。这里在页面加载后先打一次，
+        // 把冷启动的代价从"读者点开文章时白等"挪到"后台悄悄完成"。
+        // 结果不参与判断，失败也无所谓 —— 真正挂载时还会再探测一次。
+        if (commentsReady.value) {
+          window.setTimeout(function () {
+            probeCommentServer().then(function (ok) {
+              if (!ok) console.warn('评论服务预热失败（不影响页面其他部分）');
+            });
+          }, 1500);
+        }
 
         // 统计脚本延迟加载：不占用首屏关键路径
         window.setTimeout(function () {
