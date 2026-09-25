@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>评论服务连通性诊断 · Leafer's Garden</title>
+<style>
+  :root { --ok:#10b981; --bad:#ef4444; --warn:#f59e0b; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 24px 16px 60px;
+    font-family: system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #fbfaf6; color: #2f3a33; line-height: 1.7;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #0b0f14; color: #e6ece7; }
+    .card { background: rgba(17,24,39,.6) !important; border-color:#1f2937 !important; }
+    pre { background:#0b0f14 !important; }
+    button { background:#10b981 !important; }
+  }
+  h1 { font-size: 1.3rem; margin: 0 0 6px; }
+  .sub { font-size: .85rem; opacity: .65; margin-bottom: 20px; }
+  .card {
+    max-width: 720px; margin: 0 auto 18px; padding: 18px 20px;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+  }
+  button {
+    display: inline-block; padding: 10px 18px; border: 0; border-radius: 999px;
+    background: #10b981; color: #fff; font-size: .9rem; font-weight: 600;
+    cursor: pointer; font-family: inherit;
+  }
+  button:disabled { opacity: .5; cursor: default; }
+  table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+  td { padding: 7px 4px; border-bottom: 1px solid rgba(128,128,128,.18); vertical-align: top; }
+  td:first-child { white-space: nowrap; padding-right: 12px; }
+  .ok { color: var(--ok); font-weight: 700; }
+  .bad { color: var(--bad); font-weight: 700; }
+  .warn { color: var(--warn); font-weight: 700; }
+  pre {
+    background: #f6f7f5; padding: 12px; border-radius: 8px;
+    font-size: .75rem; overflow-x: auto; white-space: pre-wrap; word-break: break-all;
+    max-height: 340px;
+  }
+  .hint { font-size: .8rem; opacity: .7; margin-top: 10px; }
+  .copy-row { margin-top: 12px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>评论服务连通性诊断</h1>
+  <div class="sub">
+    这个页面会从**你的设备**发起几项网络测试，用来判断为什么评论区加载不出来。
+    只做只读请求，不会提交任何内容。
+  </div>
+  <button id="run">开始检测</button>
+  <div class="hint">检测约需 10~40 秒（含各项超时）。完成后可点「复制结果」发给站主。</div>
+</div>
+
+<div class="card" id="resultCard" style="display:none">
+  <h1 style="font-size:1.05rem">检测结果</h1>
+  <table id="table"></table>
+  <div class="copy-row">
+    <button id="copy">复制结果</button>
+    <span id="copyMsg" style="font-size:.8rem;opacity:.7"></span>
+  </div>
+</div>
+
+<div class="card" id="rawCard" style="display:none">
+  <h1 style="font-size:1.05rem">原始数据（发给站主时可一并附上）</h1>
+  <pre id="raw"></pre>
+</div>
+
+<script>
+/**
+ * 逐项测试"从这台设备能否访问评论服务"。
+ *
+ * 为什么需要这个页面：
+ *   评论加载失败的提示是在**访客浏览器里**出现的，而站主那边一切正常 ——
+ *   说明问题出在访客的网络路径上。这种问题靠描述很难定位，
+ *   所以直接在访客设备上跑一次分项测试，把结果带回来。
+ *
+ * 测试项刻意分层，用来区分「DNS 解析失败」「连接被重置」「CORS 被拒」
+ * 「服务端返回错误」这几种完全不同的原因 —— 它们对应的修法不一样。
+ */
+(function () {
+  var WALINE = 'https://waline.leafersgarden.xyz';
+  var SITE = 'https://leafersgarden.xyz';
+  var API = WALINE + '/api/comment?path=/guestbook&pageSize=1';
+
+  var results = [];
+  var raw = { ua: navigator.userAgent, time: new Date().toISOString(), items: {} };
+
+  function add(name, status, detail, extra) {
+    results.push({ name: name, status: status, detail: detail });
+    raw.items[name] = { status: status, detail: detail, extra: extra || null };
+    render();
+  }
+
+  function render() {
+    var tb = document.getElementById('table');
+    tb.innerHTML = results.map(function (r) {
+      var cls = r.status === 'ok' ? 'ok' : (r.status === 'warn' ? 'warn' : 'bad');
+      var label = r.status === 'ok' ? '正常' : (r.status === 'warn' ? '注意' : '失败');
+      return '<tr><td>' + r.name + '</td><td class="' + cls + '">' + label
+        + '</td><td>' + (r.detail || '') + '</td></tr>';
+    }).join('');
+  }
+
+  /** 带超时的 fetch，并区分失败类型 */
+  function probe(url, opts, timeoutMs) {
+    var ctrl = new AbortController();
+    var t0 = performance.now();
+    var timer = setTimeout(function () { ctrl.abort(); }, timeoutMs);
+    return fetch(url, Object.assign({ signal: ctrl.signal, cache: 'no-store' }, opts || {}))
+      .then(function (res) {
+        clearTimeout(timer);
+        return { ok: true, status: res.status, ms: Math.round(performance.now() - t0), res: res };
+      })
+      .catch(function (err) {
+        clearTimeout(timer);
+        return {
+          ok: false,
+          ms: Math.round(performance.now() - t0),
+          err: (err && (err.name + ': ' + err.message)) || String(err)
+        };
+      });
+  }
+
+  async function run() {
+    results = [];
+    raw.items = {};
+    raw.time = new Date().toISOString();
+    document.getElementById('resultCard').style.display = '';
+    document.getElementById('rawCard').style.display = '';
+    render();
+
+    add('浏览器', 'ok', navigator.userAgent.slice(0, 90));
+
+    // 1. 主站（对照）：能打开说明基本网络是通的
+    var r1 = await probe(SITE + '/?cb=' + Date.now(), { method: 'GET' }, 15000);
+    add('主站页面', r1.ok && r1.status === 200 ? 'ok' : 'bad',
+      r1.ok ? ('HTTP ' + r1.status + '  ' + r1.ms + 'ms') : (r1.err + '  ' + r1.ms + 'ms'));
+
+    // 2. 评论服务的 API（核心）—— 与页面上用的是同一个地址
+    var r2 = await probe(API + '&cb=' + Date.now(), { method: 'GET', credentials: 'omit' }, 15000);
+    if (r2.ok && r2.status === 200) {
+      var body = '';
+      try { body = (await r2.res.text()).slice(0, 60); } catch (e) {}
+      add('评论服务 API', 'ok', 'HTTP 200  ' + r2.ms + 'ms  ' + body.replace(/\s+/g, ''));
+    } else if (r2.ok) {
+      // 有响应但状态码不对：请求其实到达了服务端
+      add('评论服务 API', 'warn', 'HTTP ' + r2.status + '  ' + r2.ms + 'ms（能连上，但服务端返回异常）');
+    } else {
+      // 关键判断：拒绝很快（<1s）多为连接被重置，超时多为链路不通
+      var fast = r2.ms < 1500;
+      add('评论服务 API', 'bad', r2.err + '  ' + r2.ms + 'ms'
+        + (fast ? '（快速失败 → 典型是被拦截/重置）' : '（超时 → 链路不通或极慢）'));
+    }
+
+    // 3. 评论服务的根路径（不带 /api，判断是否整个子域不可达）
+    var r3 = await probe(WALINE + '/?cb=' + Date.now(), { method: 'GET' }, 15000);
+    add('评论服务域名根路径', r3.ok ? (r3.status < 500 ? 'ok' : 'warn') : 'bad',
+      r3.ok ? ('HTTP ' + r3.status + '  ' + r3.ms + 'ms') : (r3.err + '  ' + r3.ms + 'ms'));
+
+    // 4. DNS 是否解析得出（用 fetch 到一个必然不存在的子域做对照）
+    //    这里无法直接查 DNS，但可以用「快速失败」间接反映
+    //    更准确的信息靠根路径与 API 两项的结果组合判断
+    add('说明', 'warn',
+      '若「主站页面」正常但「评论服务」失败，说明是评论服务这条链路被拦，'
+      + '而不是你的网络整体不通。');
+
+    // 5. 重试一次 API，排除偶发抖动
+    var r5 = await probe(API + '&retry=' + Date.now(), { method: 'GET', credentials: 'omit' }, 15000);
+    add('评论服务 API（重试一次）', r5.ok && r5.status === 200 ? 'ok' : 'bad',
+      r5.ok ? ('HTTP ' + r5.status + '  ' + r5.ms + 'ms') : (r5.err + '  ' + r5.ms + 'ms'));
+
+    document.getElementById('raw').textContent = JSON.stringify(raw, null, 2);
+    document.getElementById('run').disabled = false;
+    document.getElementById('run').textContent = '重新检测';
+  }
+
+  document.getElementById('run').addEventListener('click', function () {
+    this.disabled = true;
+    this.textContent = '检测中…';
+    run();
+  });
+
+  document.getElementById('copy').addEventListener('click', async function () {
+    var text = JSON.stringify(raw, null, 2);
+    var msg = document.getElementById('copyMsg');
+    try {
+      await navigator.clipboard.writeText(text);
+      msg.textContent = '已复制，发给站主即可';
+    } catch (e) {
+      // 剪贴板 API 需要 HTTPS 与用户授权，失败时提示手动复制
+      msg.textContent = '自动复制失败，请手动选中下面的原始数据复制';
+    }
+  });
+})();
+</script>
+</body>
+</html>
