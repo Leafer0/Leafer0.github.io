@@ -37,7 +37,7 @@
     }
   ],
   "comments": {
-    "serverURL": "",
+    "serverURL": "https://waline.leafersgarden.xyz",
     "lang": "zh-CN",
     "pageSize": 10,
     "login": "enable",

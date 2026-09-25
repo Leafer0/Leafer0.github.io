@@ -269,25 +269,38 @@ npm run verify:cms
   这些海外 CDN 全部清掉了，不该在这里又引一个回来。自己托管后，
   评论区的可用性只取决于你自己的 Waline 服务。
 
-### ⚠️ 国内访问的现状（已实测结论）
+### ⚠️ 国内访问：一次失败与最终结论
 
-这一段最初写的是"绑定自有域名即可解决"，**这个判断后来被实践推翻了**，记录如下：
+这一段最初写的是"绑定自有域名即可解决"，**这个判断被实践推翻过一次**，记录如下：
 
 - `xxx.vercel.app` 域名在国内被墙 —— 这一点成立
-- 但"绑定自有域名就能访问"**不成立**：换用 `leafer114514.xyz` 后，
+- 但"绑定自有域名就能访问"**不一定成立**：换用 `leafer114514.xyz` 后，
   用户电脑与手机流量**都**无法访问（`ERR_CONNECTION_RESET`），
-  而同一台机器上 `vercel.com` 却通 —— 说明被拦的是**域名**，不是 Vercel
+  而同一台机器上 `vercel.com` 却通 —— 说明被拦的是**那个域名**，不是 Vercel
 - 详见第六节「教训」一节
 
 **结论：接入评论服务前，必须先实测目标域名在你的目标网络里能否访问。**
 
 ```powershell
-# 换域名前先跑这个
 curl.exe -sS -o NUL -w "HTTP %{http_code}  %{time_total}s`n" --max-time 15 https://待测域名/api/comment?path=/thoughts/0
 ```
 
-现在 `comments.serverURL` 留空，评论区整块不显示。
-客户端已做容错：**服务不可达时会自动隐藏评论区**，不会留下转圈的空框子。
+**关键判读信号**（用于区分"被拦"和"没配好"）：
+
+| 现象 | 含义 |
+| --- | --- |
+| `Connection was reset` | 被拦，换域名 |
+| 证书不匹配（`SEC_E_WRONG_PRINCIPAL`） | **握手成功**，域名可用，只是证书还没签发 |
+| `errno:0` 的 JSON | 服务完全就绪 |
+
+目前评论服务已启用，地址 `https://waline.leafersgarden.xyz`，
+实测握手成功、证书为该子域签发、API 返回 `errno:0`。
+
+> **本地预览时评论会加载失败，这是正常的**（CORS）：
+> Waline 服务端只允许在它的 `SERVER_URL` 环境变量里配置过的来源发请求。
+> 本地是 `http://127.0.0.1:8899`，不在白名单，浏览器会拦掉。
+> 这反而验证了降级逻辑：探测失败 → **评论区整块隐藏**，不会留下转圈的空框子。
+> 要测评论请直接测线上域名。
 
 ### 验证
 
@@ -301,7 +314,7 @@ node tools/diag-comments.js            # 出问题时逐步定位卡在哪一步
 
 ## 六、部署与域名（当前方案）
 
-**当前状态：站点已上线自有域名，含 HTTPS；评论服务暂时关闭。**
+**当前状态：站点已上线自有域名，含 HTTPS；评论服务已启用。**
 
 ### 线上地址现状
 
@@ -309,7 +322,7 @@ node tools/diag-comments.js            # 出问题时逐步定位卡在哪一步
 | --- | --- | --- |
 | **`https://leafersgarden.xyz`** | **主站正式地址** | ✅ 200，HTTPS 正常 |
 | `https://leafer0.github.io` | 备用 / 旧链接 | ✅ 301 跳转到正式域名 |
-| `https://waline.leafersgarden.xyz` | 评论服务（待启用） | ⬜ 尚未接入 |
+| `https://waline.leafersgarden.xyz` | 评论服务 | ✅ API 返回 `errno:0` |
 | `https://leafer114514.xyz` | 已废弃 | ❌ 国内被拦（见下） |
 
 **托管在 GitHub Pages**，通过仓库根目录的 `CNAME` 文件绑定域名。
@@ -424,18 +437,20 @@ curl.exe -sS -o NUL -w "HTTP %{http_code}  %{time_total}s`n" --max-time 15 https
    > 不会给读者留下一个转圈的空框子。验证脚本：
    > `node tools/check-comments-fallback.js`
 
-### 为什么评论服务地址现在是空的
+### 为什么评论服务地址曾经是空的
 
 `comments.serverURL` 留空 → 整站不显示评论区。
 这是刻意的：域名被拦后留着它只会让读者看到一个坏掉的框子。
 
-现在 `leafersgarden.xyz` 已被证明可用，如果要把评论接回来：
+**现已启用**（`https://waline.leafersgarden.xyz`）。接入步骤记录如下：
 
 1. 在 Vercel 的 Waline 项目里绑定 `waline.leafersgarden.xyz`
 2. 在阿里云加一条 CNAME：`waline` → Vercel 项目域名页给出的值
-3. **先实测这个子域可达**（电脑 + 手机流量都要试），再填进 `comments.serverURL`
+   （本站实际是 `c3a038b7aaba124d.vercel-dns-017.com`）
+3. **先实测这个子域可达**（握手成功 + 证书正确 + API 返回 `errno:0`），
+   再填进 `comments.serverURL`
 
-   最后一步不能省：域名可用不代表子域可用，而上次失败正是栽在"没测就配"。
+第 3 步不能省：域名可用不代表子域可用，而上次失败正是栽在"没测就配"。
 
 ### 项目侧的 Vercel 配置（保留，未删除）
 
