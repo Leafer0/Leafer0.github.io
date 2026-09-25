@@ -3,9 +3,12 @@
 # ============================================================
 #  用法：
 #    powershell -File tools/check-domain.ps1
-#    powershell -File tools/check-domain.ps1 -Primary www.leafer114514.xyz
+#    powershell -File tools/check-domain.ps1 -Primary leafersgarden.xyz
 #
 #  Windows PowerShell 5.1 与 PowerShell 7 均可运行。
+#
+#  站点正式地址是 leafersgarden.xyz（2026-09-25 上线，含 HTTPS 与 Enforce HTTPS）。
+#  旧的 leafer114514.xyz 已废弃：该域名在国内被运营商拦截，详见 README「教训」一节。
 #
 #  为什么是 PowerShell 而不是 Node：
 #    起初这个检查写成了 Node 脚本（用 fetch），结果在本机执行时
@@ -19,9 +22,9 @@
 # ============================================================
 
 param(
-  [string]$Primary = 'www.leafer114514.xyz',
-  [string]$Apex    = 'leafer114514.xyz',
-  [string]$Waline  = 'waline.leafer114514.xyz',
+  [string]$Primary = 'leafersgarden.xyz',
+  [string]$Apex    = 'leafersgarden.xyz',
+  [string]$Waline  = 'waline.leafersgarden.xyz',
   [string]$Backup  = 'leafer0.github.io'
 )
 
@@ -39,21 +42,75 @@ function Note($name, $detail) {
 }
 
 # 不跟随重定向，方便把 200 与 308 分开判断
+#
+# 注意这里对响应头的读取必须"容错"：
+# PowerShell 5.1 的 WebResponse 对**不存在的响应头**做索引会抛
+# "Operation is not valid due to the current state of the object"，
+# 而不是安静地返回 $null。301/308 响应往往没有 Cache-Control，
+# 于是取它就炸 —— 曾因此让「备用地址」这项检查报出莫名其妙的失败。
+# 所以统一用 Get-Hdr 取值，任何异常都降级为 $null。
+function Get-Hdr($headers, [string]$name) {
+  if (-not $headers) { return $null }
+  try {
+    $v = $headers[$name]
+    if ($v -is [array]) { return ($v -join ', ') }
+    return $v
+  } catch { return $null }
+}
+
+# Fetch：默认**跟随重定向**，返回最终状态。
+#
+# 为什么不自己判断重定向：
+#   PowerShell 5.1 在 -MaximumRedirection 0 遇到 301/302/308 时，
+#   抛出的 InvalidOperationException **不携带 Response 对象**
+#   （消息是"对象的当前状态使该操作无效"），于是读不到状态码，
+#   只能当成失败。而 leafer0.github.io 现在正是 301 跳转到新域名，
+#   于是那项检查永远报失败 —— 是脚本的问题，不是站点的问题。
+#   改为跟随跳转、判断最终是否 200，才反映访客的真实体验。
 function Fetch([string]$url) {
   try {
     $r = Invoke-WebRequest -Uri $url -UseBasicParsing -TimeoutSec 30 `
-         -MaximumRedirection 0 -ErrorAction Stop
+         -MaximumRedirection 5 -ErrorAction Stop
     return @{ ok=$true; code=[int]$r.StatusCode; len=$r.RawContentLength
-              ct=$r.Headers['Content-Type']; cc=$r.Headers['Cache-Control']
+              ct=(Get-Hdr $r.Headers 'Content-Type')
+              cc=(Get-Hdr $r.Headers 'Cache-Control')
               hdr=$r.Headers; body=$r.Content }
   } catch {
     $resp = $_.Exception.Response
     if ($resp) {
       return @{ ok=$true; code=[int]$resp.StatusCode; len=0
-                ct=$resp.Headers['Content-Type']; cc=$resp.Headers['Cache-Control']
+                ct=(Get-Hdr $resp.Headers 'Content-Type')
+                cc=(Get-Hdr $resp.Headers 'Cache-Control')
                 hdr=$resp.Headers; body='' }
     }
     return @{ ok=$false; err=$_.Exception.Message }
+  }
+}
+
+# 只看"不跟随重定向时的状态码与目标"，用于验证 Enforce HTTPS 是否生效。
+# 用 .NET 的 HttpWebRequest 而不是 Invoke-WebRequest，
+# 因为后者在 MaximumRedirection 0 下拿不到重定向响应（见上面的说明）。
+function Get-RedirectTarget([string]$url) {
+  try {
+    $req = [System.Net.HttpWebRequest]::Create($url)
+    $req.AllowAutoRedirect = $false
+    $req.Timeout = 20000
+    $resp = $req.GetResponse()
+    $code = [int]$resp.StatusCode
+    $loc = $resp.Headers['Location']
+    $resp.Close()
+    return @{ code=$code; loc=$loc }
+  } catch [System.Net.WebException] {
+    $r = $_.Exception.Response
+    if ($r) {
+      $code = [int]$r.StatusCode
+      $loc = $r.Headers['Location']
+      $r.Close()
+      return @{ code=$code; loc=$loc }
+    }
+    return @{ code=0; loc=$null }
+  } catch {
+    return @{ code=0; loc=$null }
   }
 }
 
@@ -64,20 +121,24 @@ Write-Host "  正式地址: https://$Primary"
 Write-Host "  评论服务: https://$Waline"
 Write-Host ''
 
-# ---------- 1. 两个入口 ----------
-Write-Host '  ── 1. 两个入口 ──'
+# ---------- 1. 入口与 HTTPS 强制跳转 ----------
+Write-Host '  ── 1. 入口 ──'
 $p = Fetch "https://$Primary/"
 Check ($p.ok -and $p.code -eq 200) "$Primary 返回 200" $(if($p.ok){"HTTP $($p.code)"}else{$p.err})
 if ($p.ok -and $p.code -eq 200 -and $p.body) {
   $t = [regex]::Match($p.body, '<title>(.*?)</title>').Groups[1].Value
   Check ($p.body -match 'Leafer') '页面内容是本站' "标题=$t"
 }
-$a = Fetch "https://$Apex/"
-Check ($a.ok -and ($a.code -eq 200 -or $a.code -eq 308)) "$Apex 可用" `
-  $(if($a.ok){"HTTP $($a.code)"}else{$a.err})
-if ($a.ok -and $a.code -ge 300 -and $a.code -lt 400) {
-  Note "$Apex 会跳转" "location=$($a.hdr['Location'])"
-}
+
+# Enforce HTTPS：HTTP 应当 301 到 HTTPS。这项是真实且重要的（否则访客可能一直走明文）
+$redir = Get-RedirectTarget "http://$Primary/"
+Check ($redir.code -eq 301 -and $redir.loc -like 'https://*') `
+  'HTTP 会强制跳转到 HTTPS（Enforce HTTPS 已生效）' "HTTP $($redir.code) -> $($redir.loc)"
+
+# 备用地址：GitHub Pages 的旧地址仍在，且会跳到正式域名
+$b = Fetch "https://$Backup/"
+Check ($b.ok -and $b.code -eq 200) "$Backup 仍可用" `
+  $(if($b.ok){"HTTP $($b.code)（跟随跳转后）"}else{$b.err})
 
 # ---------- 2. 静态资源 ----------
 Write-Host ''
@@ -112,42 +173,51 @@ try {
 }
 
 # ---------- 4. 缓存与安全响应头 ----------
+# 注意：本站目前托管在 GitHub Pages 上，而 **GitHub Pages 不支持自定义响应头**。
+# vercel.json 里那份缓存策略只在 Vercel 上生效。
+# 所以这里只做"信息展示"，不判成败 —— 否则会得出"缓存没配好"的错误结论。
+# 如果将来迁回 Vercel，把下面两行改成 Check 判定即可。
 Write-Host ''
-Write-Host '  ── 4. 缓存策略与响应头 ──'
+Write-Host '  ── 4. 缓存与响应头（GitHub Pages 不支持自定义，仅供参考）──'
 $ccData = (Fetch "https://$Primary/data.json").cc
 $ccImg  = (Fetch "https://$Primary/img/bg3.png.webp").cc
-Check ($ccData -match 'max-age=0|no-cache|no-store') 'data.json 不长期缓存' $ccData
-Check ($ccImg -match 'max-age=31536000|immutable') '图片长期缓存' $ccImg
+Write-Host "    data.json 的 Cache-Control : $(if($ccData){$ccData}else{'(未设置)'})"
+Write-Host "    图片的 Cache-Control       : $(if($ccImg){$ccImg}else{'(未设置)'})"
 
 # 注意：变量名不能用 $home —— PowerShell 里 $HOME 是只读内置变量，
 # 赋值会直接报错，导致这几项检查静默失效（曾因此漏报）。
 $homeResp = Fetch "https://$Primary/"
 foreach ($h in @('X-Content-Type-Options', 'Referrer-Policy', 'Strict-Transport-Security')) {
-  Check ([bool]$homeResp.hdr[$h]) "响应头 $h 已设置" $homeResp.hdr[$h]
+  Write-Host "    $h : $(if($homeResp.hdr[$h]){$homeResp.hdr[$h]}else{'(未设置)'})"
 }
+# HSTS 必须由 GitHub Pages 自己设置，这项是真实且重要的
+Check ([bool]$homeResp.hdr['Strict-Transport-Security']) `
+  'HSTS 已启用（浏览器会强制用 HTTPS）' $homeResp.hdr['Strict-Transport-Security']
 
 # ---------- 5. 评论服务 ----------
+# 评论区是按需启用的：data.json 里 comments.serverURL 为空时整站不显示评论区，
+# 这是刻意设计（服务不可用时不给读者留一个坏掉的框子）。
+# 所以"未启用"不算失败，只在启用后才校验连通性。
 Write-Host ''
 Write-Host '  ── 5. 评论服务 ──'
-$api = Fetch "https://$Waline/api/comment?path=/thoughts/0"
-$errno = $null
-if ($api.ok -and $api.body) { try { $errno = ($api.body | ConvertFrom-Json).errno } catch {} }
-Check ($api.ok -and $api.code -eq 200 -and $errno -eq 0) '评论服务可访问且返回正常' `
-  $(if($api.ok){"HTTP $($api.code)  errno=$errno"}else{$api.err})
-
 $dj = Fetch "https://$Primary/data.json"
 if ($dj.ok -and $dj.code -eq 200) {
   $d = $dj.body | ConvertFrom-Json
-  Check ($d.comments.serverURL -eq "https://$Waline") '页面配置指向自有域名' $d.comments.serverURL
+  $configured = [string]$d.comments.serverURL
   Write-Host ("        数据完整性: 帖子 {0} / 历程 {1} / 关于我段落 {2}" -f `
     $d.articles.Count, $d.journey.Count, $d.about.paragraphs.Count)
-}
 
-# ---------- 6. 备用地址 ----------
-Write-Host ''
-Write-Host '  ── 6. 备用地址 ──'
-$b = Fetch "https://$Backup/"
-Check ($b.ok -and $b.code -eq 200) "$Backup 仍可用" $(if($b.ok){"HTTP $($b.code)"}else{$b.err})
+  if (-not $configured) {
+    Write-Host '    未启用（comments.serverURL 为空，评论区整块隐藏）' -ForegroundColor Yellow
+  } else {
+    Write-Host "        配置的服务地址: $configured"
+    $api = Fetch "$configured/api/comment?path=/thoughts/0"
+    $errno = $null
+    if ($api.ok -and $api.body) { try { $errno = ($api.body | ConvertFrom-Json).errno } catch {} }
+    Check ($api.ok -and $api.code -eq 200 -and $errno -eq 0) '评论服务可访问且返回正常' `
+      $(if($api.ok){"HTTP $($api.code)  errno=$errno"}else{$api.err})
+  }
+}
 
 # ---------- 汇总 ----------
 Write-Host ''

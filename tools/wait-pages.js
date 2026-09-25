@@ -10,7 +10,9 @@
  *   2. 线上 index.html 是否已变成新版本（用新版特征字符串判定）
  */
 const REPO = 'Leafer0/Leafer0.github.io';
-const SITE = 'https://leafer0.github.io/';
+// 站点正式地址。已绑定自定义域名，旧地址 leafer0.github.io 会 301 跳转到这里，
+// 所以探测要用新域名，否则拿到的是跳转前的响应、判断不准。
+const SITE = 'https://leafersgarden.xyz/';
 const TIMEOUT = Number(process.argv[2]) || 300;
 
 // 新版特征：旧版一定没有这些字符串

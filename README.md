@@ -210,7 +210,7 @@ node tools/wait-pages.js     # 等部署完成
    （免费额度足够个人使用）
 2. 在 GitHub 上注册 OAuth App，回调地址填 `<Worker地址>/callback`
 3. 给 Worker 配环境变量 `GITHUB_CLIENT_ID`、`GITHUB_CLIENT_SECRET`，
-   并设 `ALLOWED_DOMAINS=leafer0.github.io`（防盗用）
+   并设 `ALLOWED_DOMAINS=leafersgarden.xyz`（防盗用）
 4. 在 `admin/config.yml` 的 `backend` 下取消注释 `base_url`，填入 Worker 地址
 
 ### 改了后台字段定义之后
@@ -301,23 +301,35 @@ node tools/diag-comments.js            # 出问题时逐步定位卡在哪一步
 
 ## 六、部署与域名（当前方案）
 
-**当前状态：主站用 GitHub Pages，评论服务暂时关闭。**
+**当前状态：站点已上线自有域名，含 HTTPS；评论服务暂时关闭。**
 
 ### 线上地址现状
 
 | 地址 | 用途 | 状态 |
 | --- | --- | --- |
-| **`https://leafer0.github.io`** | **主站正式地址** | ✅ 可用（实测 200 / 0.9s） |
+| **`https://leafersgarden.xyz`** | **主站正式地址** | ✅ 200，HTTPS 正常 |
+| `https://leafer0.github.io` | 备用 / 旧链接 | ✅ 301 跳转到正式域名 |
+| `https://waline.leafersgarden.xyz` | 评论服务（待启用） | ⬜ 尚未接入 |
 | `https://leafer114514.xyz` | 已废弃 | ❌ 国内被拦（见下） |
-| `https://waline.leafer114514.xyz` | 已废弃 | ❌ 国内被拦 |
-| Vercel 上的部署 | 仍在运行 | 仅境外可访问，暂不对外使用 |
 
-站点在 GitHub Pages 和（曾配置的）Vercel 上都部署同一个仓库，内容始终一致。
-即使 Vercel 那边不可达，GitHub Pages 上的内容也是最新的。
+**托管在 GitHub Pages**，通过仓库根目录的 `CNAME` 文件绑定域名。
+HTTPS 证书由 GitHub Pages 自动签发（Let's Encrypt），已开启 Enforce HTTPS。
+
+> **关于 `www`**：曾经配过 `www.leafersgarden.xyz` 的 CNAME，
+> 但 GitHub 一直报 "improperly configured" 且不为它签证书，
+> 而直接访问 `https://www.` 会证书不匹配。由于裸域已完整可用，
+> 最终**删掉了 `www` 记录**。访客请使用裸域。
+
+> **注意：换域名后 `vercel.json` 里的缓存与安全响应头不再生效。**
+> GitHub Pages 不支持自定义响应头，`data.json` 与图片都只有默认的
+> `max-age=600`，`X-Content-Type-Options` / `Referrer-Policy` 也不会下发。
+> HSTS 由 GitHub Pages 自己设置，仍然正常。
+> 若将来迁回 Vercel，这些配置会自动重新生效。
 
 ### ⚠️ 教训：`leafer114514.xyz` 在国内被拦，方案因此失败
 
-这是一次**代价明确、本可避免**的失败，记录在此以免重蹈：
+这是一次**代价明确、本可避免**的失败，记录在此以免重蹈。
+（该问题后来通过换用 `leafersgarden.xyz` 解决。）
 
 **做过什么**
 
@@ -369,7 +381,9 @@ curl.exe -sS -o NUL -w "HTTP %{http_code}  %{time_total}s`n" --max-time 15 https
   **大量检查同时失败而对照组正常时，先怀疑工具或网络。**
 - 拿不准时的兜底策略是"保留已验证可用的那条路"，而不是追求理论最优
 
-### 换新域名后怎么接回来
+### 换新域名后怎么接回来（已完成，留作参考）
+
+`leafersgarden.xyz` 就是这么接上的。步骤与踩过的坑记录如下。
 
 1. **先验证域名可用**，再动任何配置：
 
@@ -378,13 +392,32 @@ curl.exe -sS -o NUL -w "HTTP %{http_code}  %{time_total}s`n" --max-time 15 https
    ```
 
    手机流量也要试一次 —— 域名被拦往往只在特定网络下暴露。
+   `Connection was reset` = 被拦（换域名）；证书不匹配 = 正常（只是还没签证书）。
 
-2. 主站绑域名（可选）：Vercel DNS 里把 A 记录指向 GitHub Pages 的
-   `185.199.108~111.153`，然后在仓库 Settings → Pages 填自定义域名。
-   > 顺序不能反：**先在 GitHub 里填域名，再改 DNS**，
+2. **加 DNS 记录**（本站 DNS 托管在阿里云）：
+
+   | 类型 | 主机记录 | 记录值 |
+   | --- | --- | --- |
+   | A | `@` | `185.199.108.153` |
+   | A | `@` | `185.199.109.153` |
+   | A | `@` | `185.199.110.153` |
+   | A | `@` | `185.199.111.153` |
+
+   **四条都加**。只加一条时 GitHub 的 DNS 检查经常一直停在 "in progress"。
+
+   > 别配 `www` 的 CNAME。GitHub 会报 "improperly configured"
+   > 且不为它签证书，导致 `https://www.` 证书不匹配。裸域已经够用。
+
+3. **在仓库 Settings → Pages 填自定义域名并 Save。**
+
+   > 顺序上 GitHub 官方建议**先在 Pages 里填域名、再改 DNS**，
    > 否则别人可以抢先把域名绑到他自己的 GitHub Pages 上。
+   > 如果反了，GitHub 会要求你加一条
+   > `_github-pages-challenge-<用户名>` 的 TXT 记录来验证所有权。
 
-3. 评论服务：把 Waline 项目绑到新域名的一个子域，
+4. 等 GitHub 签发证书（几分钟到一小时），然后**勾选 Enforce HTTPS**。
+
+5. 评论服务：把 Waline 项目绑到新域名的一个子域，
    然后填 `data.json` 的 `comments.serverURL`。
 
    > 客户端已经能容错：服务不可达时**整块评论区会自动隐藏**，
@@ -395,7 +428,14 @@ curl.exe -sS -o NUL -w "HTTP %{http_code}  %{time_total}s`n" --max-time 15 https
 
 `comments.serverURL` 留空 → 整站不显示评论区。
 这是刻意的：域名被拦后留着它只会让读者看到一个坏掉的框子。
-等有了可用的域名，填上地址即可恢复。
+
+现在 `leafersgarden.xyz` 已被证明可用，如果要把评论接回来：
+
+1. 在 Vercel 的 Waline 项目里绑定 `waline.leafersgarden.xyz`
+2. 在阿里云加一条 CNAME：`waline` → Vercel 项目域名页给出的值
+3. **先实测这个子域可达**（电脑 + 手机流量都要试），再填进 `comments.serverURL`
+
+   最后一步不能省：域名可用不代表子域可用，而上次失败正是栽在"没测就配"。
 
 ### 项目侧的 Vercel 配置（保留，未删除）
 
