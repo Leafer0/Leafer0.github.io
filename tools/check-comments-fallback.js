@@ -138,7 +138,11 @@ const child = spawn(browserPath, [
         containerText: containers.map(c => (c.innerText || '').slice(0, 60)),
         // 页面上是否有"加载中/加载失败"提示
         loadingHint: /评论加载中/.test(document.body.innerText),
-        errorHint: /评论加载失败/.test(document.body.innerText),
+        // 文案后来改过：从"评论加载失败"改为"评论暂时加载不出来…"，
+        // 因为实测发现多数情况是 serverless 冷启动导致响应慢、
+        // 而非真的连不上，用"失败"过于绝对。
+        // 这里同时匹配新旧文案与"重试"，只要读者能看到原因与出口即可。
+        errorHint: /评论加载失败|评论暂时加载不出来/.test(document.body.innerText),
         csDebug: window.__cs || null,
         wlCount: document.querySelectorAll('[class^="wl-"]').length,
         bodyText: document.body.innerText.length,
@@ -152,7 +156,7 @@ const child = spawn(browserPath, [
     check(state.hasCommentSection, '评论区框架保留（不整块消失）',
       state.hasCommentSection ? '容器: ' + JSON.stringify(state.containerIds) : '容器被移除了');
     check(state.errorHint, '显示了加载失败提示',
-      state.errorHint ? '页面含"评论加载失败"' : '没有失败提示，读者无从判断');
+      state.errorHint ? '页面含失败原因提示' : '没有失败提示，读者无从判断');
     const hasRetry = await evaluate(`/重试/.test(document.body.innerText)`);
     check(hasRetry, '提供了重试入口', hasRetry ? '页面含"重试"' : '没有重试按钮');
     check(state.wlCount === 0, '没有残留的 Waline 元素', state.wlCount + ' 个 wl- 元素');

@@ -492,7 +492,8 @@
                        class="text-sm text-gray-500 dark:text-gray-400 py-4">评论加载中…</div>
                   <div v-else-if="commentState[index] === 'error'"
                        class="text-sm text-gray-600 dark:text-gray-400 py-4 leading-relaxed">
-                    评论加载失败 —— 可能是网络无法访问评论服务，或服务暂时不可用。
+                    评论暂时加载不出来。评论服务偶尔响应较慢（首次访问尤其如此），
+                    点重试通常就能出来；若反复失败，则可能是当前网络无法访问该服务。
                     <button type="button" class="ml-1 underline font-bold hover:text-emerald-500"
                             @click="retryComments(index)">重试</button>
                   </div>
@@ -541,7 +542,8 @@
                  class="text-sm text-gray-500 dark:text-gray-400 py-4">评论加载中…</div>
             <div v-else-if="guestbookState === 'error'"
                  class="text-sm text-gray-600 dark:text-gray-400 py-4 leading-relaxed">
-              评论加载失败 —— 可能是网络无法访问评论服务，或服务暂时不可用。
+              评论暂时加载不出来。评论服务偶尔响应较慢（首次访问尤其如此），
+              点重试通常就能出来；若反复失败，则可能是当前网络无法访问该服务。
               <button type="button" class="ml-1 underline font-bold hover:text-emerald-500"
                       @click="retryGuestbook">重试</button>
             </div>
@@ -1135,10 +1137,29 @@
        */
       var COMMENT_PROBE_TIMEOUT = 8000;
 
+      /**
+       * 探测评论服务，返回失败**类型**而不只是布尔值。
+       *
+       * 为什么要区分：
+       *   实测采样显示服务大部分请求 280~380ms，但偶有 1.5 秒级突刺
+       *   （serverless 冷启动特征）。手机网络较慢时，"突刺 + 慢链路"
+       *   可能超过 8 秒超时 —— 于是被判为不可达，显示加载失败。
+       *   但这与"服务真的连不上"是两回事：
+       *
+       *     'ok'      正常
+       *     'timeout' 超时 —— 服务可能只是慢，值得让读者重试
+       *     'network' 快速失败（DNS 失败 / 连接被重置）—— 多办是链路被拦
+       *
+       *   区分依据是**失败发生在多久**：8 秒超时器触发 vs 立刻拒绝。
+       *   1.5 秒内失败基本可断定不是"慢"，而是"不通"。
+       *
+       * 返回 Promise<{ok:boolean, kind:'ok'|'timeout'|'network', ms:number}>
+       */
       function probeCommentServer() {
         var url = String(commentsCfg.serverURL || '').replace(/\/$/, '')
           + '/api/comment?path=' + encodeURIComponent('/thoughts/0');
         var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+        var t0 = Date.now();
         var timer = window.setTimeout(function () { if (ctrl) ctrl.abort(); },
           COMMENT_PROBE_TIMEOUT);
         return fetch(url, {
@@ -1151,10 +1172,13 @@
           signal: ctrl ? ctrl.signal : undefined
         }).then(function (res) {
           window.clearTimeout(timer);
-          return res.ok;
+          return { ok: res.ok, kind: res.ok ? 'ok' : 'network', ms: Date.now() - t0 };
         }).catch(function () {
           window.clearTimeout(timer);
-          return false;
+          var ms = Date.now() - t0;
+          // 耗时接近超时值 -> 判为超时；否则视为链路层快速失败
+          var kind = ms >= COMMENT_PROBE_TIMEOUT - 500 ? 'timeout' : 'network';
+          return { ok: false, kind: kind, ms: ms };
         });
       }
 
@@ -1239,12 +1263,13 @@
             setCommentState(index, null);
             return;
           }
-          return probeCommentServer().then(function (reachable) {
-            if (!reachable) {
+          return probeCommentServer().then(function (probe) {
+            if (!probe.ok) {
               // 服务连不通：**不隐藏评论区**，而是显示明确提示与重试按钮。
               // （早期版本会整块隐藏，导致移动端网络稍差时读者看到一片空白、
               //   连重试入口都没有，完全无法自查。已改正。）
-              console.warn('评论服务不可达：' + commentsCfg.serverURL);
+              console.warn('评论服务不可达（' + probe.kind + '，' + probe.ms + 'ms）：'
+                + commentsCfg.serverURL);
               setCommentState(index, 'error');
               return;
             }
@@ -1305,10 +1330,11 @@
         if (!commentsEnabled) return;
         guestbookState.value = 'loading';
 
-        probeCommentServer().then(function (reachable) {
-          if (!reachable) {
+        probeCommentServer().then(function (probe) {
+          if (!probe.ok) {
             // 同文章评论：不隐藏留言板，改为显示提示 + 重试
-            console.warn('评论服务不可达（留言板）：' + commentsCfg.serverURL);
+            console.warn('评论服务不可达（留言板，' + probe.kind + '，' + probe.ms + 'ms）：'
+              + commentsCfg.serverURL);
             guestbookState.value = 'error';
             return null;
           }
