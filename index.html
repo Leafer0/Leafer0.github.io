@@ -103,25 +103,57 @@
 
   <!-- ==========================================================
        1. 入场页
-       原来是 <div @click>，鼠标以外没法操作、读屏也读不到。
-       现在改成真正的 <button>，Tab 聚焦 + 回车/空格/ESC 均可进入。
+       ------------------------------------------------------------
+       动画时间轴（约 2.5 秒，结束即自动移除遮罩）：
+         0.00s  纸面淡入
+         0.15s  四角藤蔓开始描边生长
+         0.75s  叶片与花朵依次绽放（Delayed 0.25s + 每片 0.08s）
+         1.15s  标题流光出现，下方细线生长
+         1.70s  中心内容模糊淡出，帷幕向两侧拉开
+         2.50s  移除遮罩
+
+       可访问性：
+         - 主体仍是真正的 <button>，Tab 聚焦 + 回车/空格均可进入
+         - 另有「跳过动画」按钮：点击立即进入，不播放后续动画
+         - 尊重 prefers-reduced-motion（CSS 已全局把动画时长压到 0.01ms）
+         - 任意点击都触发进入 —— 避免读者以为必须等动画放完
        ========================================================== -->
   <div v-if="showIntroScreen"
-       class="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-paper dark:bg-gray-900 transition-opacity duration-500"
-       :class="showIntro ? 'opacity-100' : 'opacity-0 pointer-events-none'">
+       class="fixed inset-0 z-[100] flex items-center justify-center overflow-hidden bg-paper dark:bg-gray-900"
+       :style="{ pointerEvents: introDone ? 'none' : 'auto' }"
+       :aria-hidden="introDone ? 'true' : null">
+
+    <!-- 四角草木：入场时描边生长 + 绽放 -->
+    <div class="intro-botanical intro-botanical--tl" v-html="botanical('cornerCluster', { grow: true, delay: 0.15 })"></div>
+    <div class="intro-botanical intro-botanical--tr" v-html="botanical('cornerCluster', { grow: true, delay: 0.2 })"></div>
+    <div class="intro-botanical intro-botanical--bl" v-html="botanical('cornerCluster', { grow: true, delay: 0.25 })"></div>
+    <div class="intro-botanical intro-botanical--br" v-html="botanical('cornerCluster', { grow: true, delay: 0.3 })"></div>
+
+    <!-- 帷幕：整块淡出 + 模糊，比原来"内容缩放消失"更收敛 -->
     <button
       ref="introBtn"
-      @click="startEverything"
+      @click="startEverything('enter')"
       aria-label="点击进入 Leafer's Garden"
-      class="group flex flex-col items-center justify-center w-full h-full cursor-pointer focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-500/40 focus-visible:ring-inset">
-      <span class="relative w-20 h-20 mb-8 block">
-        <span class="absolute inset-0 border-4 border-emerald-500/20 rounded-full"></span>
-        <span class="absolute inset-0 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></span>
-      </span>
-      <span class="text-4xl md:text-6xl font-bold prose-text shimmer-text mb-4">{{ intro.title }}</span>
-      <span class="line-grow mb-6 block"></span>
-      <span class="text-emerald-500 font-mono animate-pulse text-lg">{{ intro.englishHint }}</span>
-      <span class="text-gray-400 tracking-widest text-xs mt-2">{{ intro.hint }}</span>
+      class="intro-veil relative z-10 flex flex-col items-center justify-center w-full h-full cursor-pointer focus:outline-none focus-visible:ring-4 focus-visible:ring-emerald-500/40 focus-visible:ring-inset"
+      :class="introDone ? 'intro-veil--out' : ''">
+
+      <span class="text-4xl md:text-6xl font-bold prose-text shimmer-text mb-5">{{ intro.title }}</span>
+
+      <!-- 生长的细金线 -->
+      <span class="intro-rule mb-7 block"></span>
+
+      <span class="text-emerald-600 dark:text-emerald-400 font-mono animate-pulse text-lg tracking-wider">{{ intro.englishHint }}</span>
+      <span class="text-gray-400 tracking-widest text-xs mt-3">{{ intro.hint }}</span>
+    </button>
+
+    <!-- 跳过动画：0.6 秒后淡入 -->
+    <button
+      v-if="!introDone"
+      @click.stop="startEverything('skip')"
+      class="intro-skip absolute bottom-7 right-7 z-20 px-4 py-2 rounded-full text-xs font-mono
+             text-gray-500 dark:text-gray-400 border border-gray-300/60 dark:border-gray-700
+             hover:text-emerald-600 dark:hover:text-emerald-400 hover:border-emerald-500/40 transition-colors">
+      跳过动画
     </button>
   </div>
 
@@ -290,8 +322,18 @@
     <main id="main" class="flex-1 pt-14 md:pt-0">
       <transition name="fade" mode="out-in">
 
-        <!-- ---------- 关于我 ---------- -->
-        <div v-if="currentPage === 'about'" key="about" class="max-w-3xl mx-auto py-12 md:py-20 px-6">
+        <!-- ---------- 关于我 ----------
+             外层负责"向中间缩进、四周留白"，内层 .garden-frame 负责边框与草木贴边。
+             两层分开是为了让装饰的负偏移（-14px）有地方溢出，
+             不会被外层的 padding 裁掉。 -->
+        <div v-if="currentPage === 'about'" key="about" class="px-4 sm:px-8 py-10 md:py-16">
+        <div class="garden-frame max-w-2xl mx-auto px-6 sm:px-10 py-10 md:py-14">
+          <span class="garden-corner garden-corner--tl" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-corner garden-corner--tr" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-corner garden-corner--bl" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-corner garden-corner--br" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-vine garden-vine--l" v-html="botanical('vine')"></span>
+          <span class="garden-vine garden-vine--r" v-html="botanical('vine')"></span>
 
           <h1 class="text-4xl font-bold prose-text mb-6">{{ about.title }}</h1>
           <div class="w-12 h-1 bg-emerald-500 rounded-full mb-10"></div>
@@ -353,11 +395,21 @@
             </section>
           </div>
         </div>
+        </div>
 
-        <!-- ---------- 心流 / 历程 ---------- -->
-        <div v-else-if="currentPage === 'journey'" key="journey" class="max-w-3xl mx-auto py-12 md:py-20 px-6">
-          <h1 class="text-4xl font-bold prose-text mb-12">过去与未来</h1>
+        <!-- ---------- 心流 / 历程 ----------
+             同样套上花园边框，与其他页面保持一致的装帧。 -->
+        <div v-else-if="currentPage === 'journey'" key="journey" class="px-4 sm:px-8 py-10 md:py-16">
+        <div class="garden-frame max-w-2xl mx-auto px-6 sm:px-10 py-10 md:py-14">
+          <span class="garden-corner garden-corner--tl" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-corner garden-corner--tr" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-corner garden-corner--bl" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-corner garden-corner--br" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-vine garden-vine--l" v-html="botanical('vine')"></span>
+          <span class="garden-vine garden-vine--r" v-html="botanical('vine')"></span>
 
+          <h1 class="text-4xl font-bold prose-text mb-6">过去与未来</h1>
+          <div class="garden-divider mb-10" v-html="botanical('divider')"></div>
           <ol class="relative border-l-2 border-emerald-500/30 dark:border-emerald-500/20 space-y-12 ml-2">
             <li v-for="(item, index) in journey" :key="index" class="relative pl-8">
               <span class="absolute -left-[11px] top-1 w-5 h-5 rounded-full bg-white dark:bg-gray-900 border-4 border-emerald-500 shadow-sm"></span>
@@ -369,11 +421,22 @@
             </li>
           </ol>
         </div>
+        </div>
 
-        <!-- ---------- 帖子 ---------- -->
-        <div v-else-if="currentPage === 'thoughts'" key="thoughts" class="max-w-3xl mx-auto py-12 md:py-20 px-6">
-          <h1 class="text-4xl font-bold prose-text mb-12">我的帖子</h1>
+        <!-- ---------- 帖子 ----------
+             同样套花园边框。文章卡本身已有各自的底色，
+             所以这里的边框起"装帧容器"的作用。 -->
+        <div v-else-if="currentPage === 'thoughts'" key="thoughts" class="px-4 sm:px-8 py-10 md:py-16">
+        <div class="garden-frame max-w-2xl mx-auto px-6 sm:px-10 py-10 md:py-14">
+          <span class="garden-corner garden-corner--tl" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-corner garden-corner--tr" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-corner garden-corner--bl" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-corner garden-corner--br" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-vine garden-vine--l" v-html="botanical('vine')"></span>
+          <span class="garden-vine garden-vine--r" v-html="botanical('vine')"></span>
 
+          <h1 class="text-4xl font-bold prose-text mb-6">我的帖子</h1>
+          <div class="garden-divider mb-12" v-html="botanical('divider')"></div>
           <div class="space-y-10">
             <article v-for="(article, index) in articles" :key="index"
                      class="group p-5 md:p-6 rounded-3xl transition-all duration-500 glass-panel bg-white/45 dark:bg-gray-900/50 border border-white/50 dark:border-gray-800 shadow-sm hover:bg-white/70 dark:hover:bg-gray-900/75 hover:shadow-lg">
@@ -449,6 +512,7 @@
             </article>
           </div>
         </div>
+        </div>
 
         <!-- ---------- 留言板（全站共用一块评论区）----------
              与"帖子"页的区别：这里所有访客共用同一个 Waline path（/guestbook），
@@ -457,12 +521,20 @@
 
              为什么单独放一个 v-if 分支：模板里绝不能同时出现两个评论区实例，
              每次只渲染当前页面的那一个（配合 watch(commentHostKey) 管理实例生命周期）。 -->
-        <div v-else-if="currentPage === 'guestbook'" key="guestbook" class="max-w-3xl mx-auto py-12 md:py-20 px-6">
+        <div v-else-if="currentPage === 'guestbook'" key="guestbook" class="px-4 sm:px-8 py-10 md:py-16">
+        <div class="garden-frame max-w-2xl mx-auto px-6 sm:px-10 py-10 md:py-14">
+          <span class="garden-corner garden-corner--tl" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-corner garden-corner--tr" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-corner garden-corner--bl" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-corner garden-corner--br" v-html="botanical('cornerCluster')"></span>
+          <span class="garden-vine garden-vine--l" v-html="botanical('vine')"></span>
+          <span class="garden-vine garden-vine--r" v-html="botanical('vine')"></span>
+
           <h1 class="text-4xl font-bold prose-text mb-4">留言板</h1>
-          <p class="prose-text text-gray-600 dark:text-gray-400 mb-10 leading-relaxed">
+          <p class="prose-text text-gray-600 dark:text-gray-400 mb-6 leading-relaxed">
             这里全站共用一块留言区，想说什么都可以留在这儿。填个昵称就能发言，不需要注册。
           </p>
-          <div class="w-12 h-1 bg-emerald-500 rounded-full mb-10"></div>
+          <div class="garden-divider mb-10" v-html="botanical('divider')"></div>
 
           <div v-if="commentsEnabled">
             <div v-if="guestbookState === 'loading'"
@@ -475,6 +547,7 @@
             </div>
             <div id="waline-guestbook"></div>
           </div>
+        </div>
         </div>
 
       </transition>
@@ -625,6 +698,7 @@
 <!-- 数据与图标。都放在 body 末尾，避免阻塞首屏渲染 -->
 <script src="data.js"></script>
 <script src="icons.js"></script>
+<script src="botanical.js"></script>
 <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
 
 <!--
@@ -775,6 +849,10 @@
       var sidebarOpen = ref(false);
       var showIntro = ref(true);
       var showIntroScreen = ref(true);
+      // 入场动画是否已进入"收尾"阶段（帷幕淡出）。
+      // 单独一个状态是为了让模板能区分"正在播"和"正在退场"，
+      // 并据此隐藏「跳过动画」按钮、禁止重复触发。
+      var introDone = ref(false);
       var currentPage = ref('about');
       var expandedIndex = ref(null);
       var currentBgIndex = ref(0);
@@ -1317,10 +1395,22 @@
         showToTop.value = window.scrollY > 600;
       }
 
-      /* ---------------- 入场 ---------------- */
-      function startEverything() {
-        var a = audioRef.value;
-        if (a) {
+      /* ---------------- 入场 ----------------
+         mode:
+           'enter' —— 正常点击进入：播放帷幕淡出，音乐照常起播
+           'skip'  —— 点了「跳过动画」：立即移除遮罩，不做过渡
+                      （读者已经表达"别放了"，再播 0.75 秒淡出是违背意愿的）
+           'auto'  —— 直接移除遮罩，但**不主动播放音乐**
+                      用于「已经看过动画」的再次访问：浏览器不会允许
+                      非用户手势触发的自动播放，硬播只会收获一条控制台报错。
+       -------------------------------------------------- */
+      function startEverything(mode) {
+        mode = mode || 'enter';
+        if (introDone.value) return;   // 防重复触发（点击 + 键盘可能同时到达）
+
+        var shouldPlayMusic = (mode === 'enter');
+        if (shouldPlayMusic && audioRef.value) {
+          var a = audioRef.value;
           a.volume = volume.value;
           // 手动点击是一次真实的用户手势，浏览器允许在这里播放
           var p = a.play();
@@ -1329,13 +1419,23 @@
               isPlaying.value = true;
               musicOpen.value = true;
             }).catch(function () {
-              // 被策略拦截就安静地不播，不再往控制台丢红色报错
+              // 被策略拦截就安静地不播，不往控制台丢红色报错
               isPlaying.value = false;
             });
           }
         }
+
+        if (mode === 'skip' || mode === 'auto') {
+          introDone.value = true;
+          showIntro.value = false;
+          showIntroScreen.value = false;
+          return;
+        }
+
+        // 正常进入：先播帷幕淡出与模糊，再移除遮罩
+        introDone.value = true;
         showIntro.value = false;
-        window.setTimeout(function () { showIntroScreen.value = false; }, 600);
+        window.setTimeout(function () { showIntroScreen.value = false; }, 750);
       }
 
       /* ---------------- 生命周期 ---------------- */
@@ -1428,7 +1528,7 @@
         currentBackground: currentBackground,
         // 状态
         isDark: isDark, sidebarOpen: sidebarOpen, showIntro: showIntro,
-        showIntroScreen: showIntroScreen, currentPage: currentPage,
+        showIntroScreen: showIntroScreen, introDone: introDone, currentPage: currentPage,
         expandedIndex: expandedIndex, currentBgIndex: currentBgIndex,
         runtime: runtime, randomStatus: randomStatus, currentQuote: currentQuote,
         showToTop: showToTop,
@@ -1449,8 +1549,8 @@
         commentCounts: commentCounts, commentState: commentState,
         commentsElId: commentsElId, retryComments: retryComments,
         guestbookState: guestbookState, retryGuestbook: retryGuestbook,
-        // 图标
-        icon: icon
+        // 图标与草木纹样
+        icon: icon, botanical: botanical
       };
     }
   }).mount('#app');

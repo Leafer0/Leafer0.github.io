@@ -9,6 +9,31 @@
 @tailwind utilities;
 
 /* ============================================================
+   设计变量：花园主题
+   ------------------------------------------------------------
+   集中定义配色，方便整体调整。深色模式在下面覆盖。
+   用 CSS 变量而不是 Tailwind 主题色，是因为花草纹样（内联 SVG）
+   也要用同一套颜色 —— SVG 走 currentColor 继承即可。
+   ============================================================ */
+:root {
+  --garden-ink: #2f3a33;          /* 正文主色：偏绿的深墨 */
+  --garden-leaf: #6f9a76;         /* 叶片：柔和的鼠尾草绿 */
+  --garden-leaf-deep: #3f6b4f;    /* 深叶：用于强调 */
+  --garden-gold: #c8a86b;         /* 细金：边框与花心 */
+  --garden-paper: #fbfaf6;        /* 纸面：正文卡片底色 */
+  --garden-line: rgba(111, 154, 118, 0.28);  /* 藤线 */
+}
+
+.dark {
+  --garden-ink: #e6ece7;
+  --garden-leaf: #7fa987;
+  --garden-leaf-deep: #a9cdb3;
+  --garden-gold: #d4b87e;
+  --garden-paper: rgba(17, 24, 39, 0.62);
+  --garden-line: rgba(127, 169, 135, 0.3);
+}
+
+/* ============================================================
    基础层
    ============================================================ */
 @layer base {
@@ -214,6 +239,222 @@
 @keyframes spinSlow {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   花园主题：正文边框与草木贴边
+   ------------------------------------------------------------
+   放在 @layer components 之外，因为：
+   1. 这些类用在 data.js 与模板拼接处，放进 layer 有被 purge 的风险
+   2. 需要覆盖 Tailwind 工具类的顺序
+   ============================================================ */
+
+/* 正文卡片：向中间收窄并留出宽边框。
+   边框用"双层"表现：外层细金线 + 内层淡藤线，
+   比单一 border 更像手绘卡片的装帧感。 */
+.garden-frame {
+  position: relative;
+  background: var(--garden-paper);
+  border: 1px solid var(--garden-line);
+  border-radius: 4px;
+  /* 外层金线的模拟：用 outline 偏移做出第二道线 */
+  outline: 1px solid color-mix(in srgb, var(--garden-gold) 45%, transparent);
+  outline-offset: 6px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.5) inset,
+    0 18px 40px -24px rgba(47, 58, 51, 0.28);
+}
+
+.dark .garden-frame {
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.04) inset,
+    0 18px 40px -24px rgba(0, 0, 0, 0.6);
+}
+
+/* 四角的草木贴边。
+   用绝对定位挂在 .garden-frame 外侧（负偏移），营造"从边框长出来"的效果。
+   各角通过 scale 镜像复用同一个纹样，避免画四套路径。 */
+.garden-corner {
+  position: absolute;
+  width: 118px;
+  height: 118px;
+  color: var(--garden-leaf);
+  pointer-events: none;   /* 装饰不可点，避免挡住正文链接 */
+  opacity: 0.5;
+  z-index: 2;
+}
+
+.garden-corner--tl { top: -14px; left: -14px; }
+.garden-corner--tr { top: -14px; right: -14px; transform: scaleX(-1); }
+.garden-corner--bl { bottom: -14px; left: -14px; transform: scaleY(-1); }
+.garden-corner--br { bottom: -14px; right: -14px; transform: scale(-1, -1); }
+
+/* 两侧的藤蔓：沿边框纵向延伸。只有宽屏才显示，
+   否则会与缩窄后的正文抢空间。 */
+.garden-vine {
+  position: absolute;
+  top: 84px;
+  bottom: 84px;
+  width: 54px;
+  color: var(--garden-leaf);
+  pointer-events: none;
+  opacity: 0.35;
+  z-index: 1;
+}
+.garden-vine--l { left: -66px; }
+.garden-vine--r { right: -66px; transform: scaleX(-1); }
+
+/* 花饰分隔线：章节之间 */
+.garden-divider {
+  display: block;
+  width: 240px;
+  height: 40px;
+  margin: 0 auto;
+  color: var(--garden-gold);
+  opacity: 0.7;
+}
+
+/* 窄屏处理：正文一旦被挤压，就把宽边框让出来。
+   手机上保留四角小装饰做"手绘感"，但收起两侧藤蔓与过量留白。 */
+@media (max-width: 1280px) {
+  .garden-vine { display: none; }
+}
+@media (max-width: 900px) {
+  .garden-corner { width: 76px; height: 76px; opacity: 0.42; }
+  .garden-corner--tl,
+  .garden-corner--tr { top: -10px; }
+  .garden-corner--tr { right: -10px; }
+  .garden-corner--bl { bottom: -10px; }
+  .garden-corner--br { bottom: -10px; right: -10px; }
+  .garden-frame { outline-offset: 4px; }
+}
+
+/* 极窄屏进一步收敛，避免装饰压到文字 */
+@media (max-width: 480px) {
+  .garden-corner { width: 58px; height: 58px; opacity: 0.35; }
+}
+
+/* ============================================================
+   入场动画：藤蔓生长 → 花叶绽放 → 帷幕拉开
+   ------------------------------------------------------------
+   时间轴（总计约 2.5 秒，之后自动结束）：
+     0.00s  纸面淡入
+     0.15s  四角藤蔓开始描边生长（accent 用 stroke-dashoffset）
+     0.75s  叶片与花朵依次绽放（bloom 缩放 + 淡入）
+     1.15s  标题流光出现
+     1.70s  中心内容模糊淡出，帷幕向两侧拉开
+     2.50s  移除遮罩
+   ============================================================ */
+
+/* 入场页的纹样容器：比正文角饰更大更醒目 */
+.intro-botanical {
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  color: var(--garden-leaf);
+  pointer-events: none;
+  opacity: 0;
+  animation: intro-botanical-in 0.7s ease-out forwards;
+}
+.intro-botanical--tl { top: 3vh; left: 3vw; }
+.intro-botanical--tr { top: 3vh; right: 3vw; transform: scaleX(-1); }
+.intro-botanical--bl { bottom: 3vh; left: 3vw; transform: scaleY(-1); }
+.intro-botanical--br { bottom: 3vh; right: 3vw; transform: scale(-1, -1); }
+
+@keyframes intro-botanical-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 0.62; }
+}
+
+/* 四个角的镜像变换要保留，所以淡入动画用单独的关键帧改写 opacity：
+   上面那条对已带 transform 的角会覆盖 transform，这里用 wrapper 分离关注点。 */
+.intro-botanical--tr { animation-name: intro-botanical-in-flipx; }
+.intro-botanical--bl { animation-name: intro-botanical-in-flipy; }
+.intro-botanical--br { animation-name: intro-botanical-in-flipxy; }
+
+@keyframes intro-botanical-in-flipx {
+  from { opacity: 0; transform: scaleX(-1) translateY(12px); }
+  to   { opacity: 0.62; transform: scaleX(-1); }
+}
+@keyframes intro-botanical-in-flipy {
+  from { opacity: 0; transform: scaleY(-1) translateY(12px); }
+  to   { opacity: 0.62; transform: scaleY(-1); }
+}
+@keyframes intro-botanical-in-flipxy {
+  from { opacity: 0; transform: scale(-1, -1) translateY(12px); }
+  to   { opacity: 0.62; transform: scale(-1, -1); }
+}
+
+/* 描边生长：靠 dasharray + dashoffset 从"未画出"到"完全画出" */
+.bot-stroke {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 0;
+  pathLength: 1;
+}
+.botanical--grow .bot-stroke {
+  stroke-dashoffset: 1;
+  animation: bot-draw 1.1s ease-out forwards;
+}
+@keyframes bot-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+/* 叶片绽放：从花心处放大并淡入。
+   transform-origin 用各路径的包围盒近似 —— 统一设为左下，
+   因为叶片的生长点都在茎上。 */
+.botanical--grow .bot-fill {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+  animation: bot-bloom 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes bot-bloom {
+  from { opacity: 0; transform: scale(0.2); }
+  to   { opacity: 0.55; transform: scale(1); }
+}
+
+.botanical--grow .bot-dot {
+  opacity: 0;
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: bot-bloom-dot 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+@keyframes bot-bloom-dot {
+  from { opacity: 0; transform: scale(0); }
+  to   { opacity: 0.85; transform: scale(1); }
+}
+
+/* 标题下方的生长细线 */
+.intro-rule {
+  width: 0;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent, var(--garden-gold) 20%, var(--garden-gold) 80%, transparent);
+  animation: intro-rule-grow 1.1s ease-out 0.45s forwards;
+}
+@keyframes intro-rule-grow {
+  to { width: 230px; }
+}
+
+/* 帷幕：整块淡出 + 轻微模糊，代替原来的"内容模糊后消失" */
+.intro-veil {
+  opacity: 1;
+  transition: opacity 0.75s ease-in, filter 0.75s ease-in;
+}
+.intro-veil--out {
+  opacity: 0;
+  filter: blur(8px);
+}
+
+/* 入场页的"跳过动画"按钮：淡入出现，键盘也能聚焦 */
+.intro-skip {
+  opacity: 0;
+  animation: intro-skip-in 0.4s ease-out 0.6s forwards;
+}
+@keyframes intro-skip-in {
+  to { opacity: 1; }
 }
 
 /* 背景缓慢呼吸缩放（Ken Burns）。

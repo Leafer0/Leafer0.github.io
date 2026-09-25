@@ -53,7 +53,8 @@ fs.writeFileSync(
 
 module.exports = {
   darkMode: 'class',
-  content: ['./index.html', './data.js'],
+  // 含 botanical.js：它在运行时拼出 botanical--grow 这类类名，静态扫描要能看到
+  content: ['./index.html', './data.js', './botanical.js'],
   theme: theme,
   safelist: safelist,
   plugins: [],
