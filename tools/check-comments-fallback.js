@@ -114,19 +114,16 @@ const child = spawn(browserPath, [
       const b=[...document.querySelectorAll('button')].find(x=>x.textContent.includes('阅读全文'));
       if(!b) return false; b.click(); return true;
     })()`);
-    // 轮询等待评论区被移除，而不是赌一个固定 sleep。
-    // 探测失败所需时间取决于环境：对不可解析的域名，DNS 失败可能要 7~8 秒
-    // （实测），而最初只等 6 秒就断言，于是报出"评论区仍然出现"的假失败。
-    // 判据用"是否还在显示加载中"：加载中消失即代表探测已出结果。
+    // 轮询等待降级完成：探测失败后应显示"加载失败 + 重试"，而不是把评论区整块隐藏。
+    // 说明：早期实现是整块隐藏，结果移动端网络稍差时读者看到一片空白、
+    // 连重试入口都没有。现在改为保留评论区框架 + 明确提示。
+    // 探测失败耗时取决于环境（对不可解析域名可能要 7~8 秒），所以用轮询而非固定等待。
     let waited = 0;
     while (waited < 20000) {
       await sleep(1000);
       waited += 1000;
       const stillLoading = await evaluate(`/评论加载中/.test(document.body.innerText)`);
-      const hasContainer = await evaluate(
-        `document.querySelectorAll('[id^="waline-thread-"], #waline-guestbook').length > 0`
-      );
-      if (!stillLoading && !hasContainer) break;
+      if (!stillLoading) break;
     }
     console.log('\n  等待降级完成: ' + (waited / 1000) + ' 秒');
 
@@ -150,12 +147,14 @@ const child = spawn(browserPath, [
     })()`);
 
     check(expanded, '文章可展开', expanded ? '' : '未找到"阅读全文"按钮');
-    check(!state.hasCommentSection, '评论区已隐藏（不显示坏掉的框子）',
-      state.hasCommentSection
-        ? '仍存在的容器: ' + JSON.stringify(state.containerIds)
-          + '  __cs=' + JSON.stringify(state.csDebug)
-          + '  可见元素数=' + state.wlCount
-        : '整块消失，符合预期');
+    // 关键：失败时**必须保留评论区框架**并给出提示与重试入口。
+    // （早期是整块隐藏，移动端网络稍差时读者只看到空白、无从自查。）
+    check(state.hasCommentSection, '评论区框架保留（不整块消失）',
+      state.hasCommentSection ? '容器: ' + JSON.stringify(state.containerIds) : '容器被移除了');
+    check(state.errorHint, '显示了加载失败提示',
+      state.errorHint ? '页面含"评论加载失败"' : '没有失败提示，读者无从判断');
+    const hasRetry = await evaluate(`/重试/.test(document.body.innerText)`);
+    check(hasRetry, '提供了重试入口', hasRetry ? '页面含"重试"' : '没有重试按钮');
     check(state.wlCount === 0, '没有残留的 Waline 元素', state.wlCount + ' 个 wl- 元素');
     check(state.articleVisible, '文章正文照常显示', '页面文字 ' + state.bodyText + ' 字符');
     check(exceptions.length === 0, '无未捕获 JS 异常',

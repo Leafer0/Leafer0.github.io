@@ -416,7 +416,7 @@
                         实例的创建与销毁改由 watch(commentHostKey) 统一管理。
                      3. 评论按文章区分，靠 Waline 的 path 参数（见 initWaline）
                      ========================================================== -->
-                <section v-if="commentsReady"
+                <section v-if="commentsEnabled"
                          class="mt-10 pt-8 border-t border-gray-200/70 dark:border-gray-800">
                   <h3 class="text-sm font-mono uppercase tracking-widest text-gray-500 dark:text-gray-400 mb-5">
                     评论
@@ -428,9 +428,9 @@
                   <div v-if="commentState[index] === 'loading'"
                        class="text-sm text-gray-500 dark:text-gray-400 py-4">评论加载中…</div>
                   <div v-else-if="commentState[index] === 'error'"
-                       class="text-sm text-gray-500 dark:text-gray-400 py-4">
-                    评论加载失败，可能是服务地址填错或服务暂时不可用。
-                    <button type="button" class="ml-1 underline hover:text-emerald-500"
+                       class="text-sm text-gray-600 dark:text-gray-400 py-4 leading-relaxed">
+                    评论加载失败 —— 可能是网络无法访问评论服务，或服务暂时不可用。
+                    <button type="button" class="ml-1 underline font-bold hover:text-emerald-500"
                             @click="retryComments(index)">重试</button>
                   </div>
 
@@ -464,13 +464,13 @@
           </p>
           <div class="w-12 h-1 bg-emerald-500 rounded-full mb-10"></div>
 
-          <div v-if="commentsReady">
+          <div v-if="commentsEnabled">
             <div v-if="guestbookState === 'loading'"
                  class="text-sm text-gray-500 dark:text-gray-400 py-4">评论加载中…</div>
             <div v-else-if="guestbookState === 'error'"
-                 class="text-sm text-gray-500 dark:text-gray-400 py-4">
-              评论加载失败，可能是服务暂时不可用。
-              <button type="button" class="ml-1 underline hover:text-emerald-500"
+                 class="text-sm text-gray-600 dark:text-gray-400 py-4 leading-relaxed">
+              评论加载失败 —— 可能是网络无法访问评论服务，或服务暂时不可用。
+              <button type="button" class="ml-1 underline font-bold hover:text-emerald-500"
                       @click="retryGuestbook">重试</button>
             </div>
             <div id="waline-guestbook"></div>
@@ -715,9 +715,24 @@
       /* ---------------- 评论（Waline） ---------------- */
       // 配置放在 data.json 的 comments 里，后台可改。
       // serverURL 为空时整站不显示评论区 —— 这样在服务搭好之前不会有半个空框子露在外面。
-      // 用 ref 而不是普通变量：探测到服务不可达时要能动态关掉评论区，模板才会响应。
+      // 用 ref 而不是普通变量：模板要根据它决定是否渲染整块评论区。
       var commentsCfg = D.comments || {};
-      var commentsReady = ref(!!commentsCfg.serverURL);
+
+      /**
+       * 两个状态刻意分开，这是踩坑后改的：
+       *
+       *   commentsEnabled —— 是否**配置了**评论服务（只取决于 data.json，不变）
+       *   commentsReady   —— 一次探测是否**成功**（会随网络变化）
+       *
+       * 最初只有一个 commentsReady，探测失败就被置为 false，
+       * 结果是整个评论区（含"重试"按钮）一起消失 ——
+       * 读者只看到一片空白，既不知发生了什么，也无从重试。
+       * 移动端网络稍差就命中这个分支，症状就是"手机上根本看不到评论区"。
+       *
+       * 现在：配置在就始终渲染评论区框架；探测失败显示明确提示 + 重试按钮。
+       */
+      var commentsEnabled = !!commentsCfg.serverURL;
+      var commentsReady = ref(commentsEnabled);
 
       var commentInstances = {};   // 文章序号 -> Waline 实例，用于销毁
       var commentCounts = ref({});  // 文章序号 -> 评论数（从渲染结果里读）
@@ -951,7 +966,7 @@
            （已实测同一页面确实能挂两个 Waline 实例，但没必要这么做）
       -------------------------------------------------- */
       var commentHostKey = computed(function () {
-        if (!commentsReady.value) return '';
+        if (!commentsEnabled) return '';
         if (currentPage.value === 'guestbook') return 'guestbook';
         var i = expandedIndex.value;
         return (currentPage.value === 'thoughts' && i !== null) ? 'thoughts:' + i : '';
@@ -1096,14 +1111,14 @@
        * 只用来"预热"的一次请求：结果只影响缓存，绝不改变任何界面状态。
        *
        * 为什么不直接复用 probeCommentServer()：
-       *   那个函数在失败时会把 commentsReady 置为 false（用于"服务真的不可达，
-       *   整块隐藏评论区"）。而预热只是一个优化动作，
-       *   失败不该有任何后果 —— 复用它会因为一次预热失败就把整个评论区关掉。
+       *   那个函数失败时会把评论区标记为 error（显示"加载失败 + 重试"）。
+       *   而预热只是一个后台优化动作，失败不该有任何后果 ——
+       *   复用它会因为一次预热失败就让评论区显示成故障状态。
        *   这个 bug 真实发生过：预热请求在本地 CORS 下失败，
-       *   导致能正常加载的文章评论也被一并隐藏。
+       *   把本来能正常加载的评论区也一并拖成了失败态。
        */
       function warmupCommentServer() {
-        if (!commentsReady.value) return;
+        if (!commentsEnabled) return;
         var url = String(commentsCfg.serverURL || '').replace(/\/$/, '')
           + '/api/comment?path=' + encodeURIComponent('/thoughts/0');
         var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
@@ -1130,7 +1145,7 @@
        * 若用 pathname，全部文章会共用同一份评论。
        */
       function initWaline(index) {
-        if (!commentsReady.value) return;
+        if (!commentsEnabled) return;
         setCommentState(index, 'loading');
 
         var containerId = commentsElId(index);
@@ -1148,10 +1163,11 @@
           }
           return probeCommentServer().then(function (reachable) {
             if (!reachable) {
-              // 服务连不通：隐藏整块评论区，不给读者留下一个坏掉的界面
-              console.warn('评论服务不可达，已隐藏评论区：' + commentsCfg.serverURL);
-              commentsReady.value = false;
-              setCommentState(index, null);
+              // 服务连不通：**不隐藏评论区**，而是显示明确提示与重试按钮。
+              // （早期版本会整块隐藏，导致移动端网络稍差时读者看到一片空白、
+              //   连重试入口都没有，完全无法自查。已改正。）
+              console.warn('评论服务不可达：' + commentsCfg.serverURL);
+              setCommentState(index, 'error');
               return;
             }
             return ensureWaline().then(function () {
@@ -1208,14 +1224,14 @@
       }
 
       function initGuestbook() {
-        if (!commentsReady.value) return;
+        if (!commentsEnabled) return;
         guestbookState.value = 'loading';
 
         probeCommentServer().then(function (reachable) {
           if (!reachable) {
-            console.warn('评论服务不可达，已隐藏留言板：' + commentsCfg.serverURL);
-            commentsReady.value = false;
-            guestbookState.value = null;
+            // 同文章评论：不隐藏留言板，改为显示提示 + 重试
+            console.warn('评论服务不可达（留言板）：' + commentsCfg.serverURL);
+            guestbookState.value = 'error';
             return null;
           }
           return Promise.all([ensureWaline(), waitForElement('waline-guestbook', 3000)]);
@@ -1429,7 +1445,8 @@
         onTimeUpdate: onTimeUpdate, onLoadedMetadata: onLoadedMetadata, onAudioError: onAudioError,
         openLightbox: openLightbox, closeLightbox: closeLightbox, stepLightbox: stepLightbox,
         // 评论
-        commentsReady: commentsReady, commentCounts: commentCounts, commentState: commentState,
+        commentsEnabled: commentsEnabled, commentsReady: commentsReady,
+        commentCounts: commentCounts, commentState: commentState,
         commentsElId: commentsElId, retryComments: retryComments,
         guestbookState: guestbookState, retryGuestbook: retryGuestbook,
         // 图标
